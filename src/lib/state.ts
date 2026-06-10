@@ -434,7 +434,8 @@ export function registerUser(phone: string, password: string, referrerPhone?: st
  */
 export function loginUser(phone: string, password: string): { error: string | null; user?: User } {
   const state = getDbState();
-  const user = state.users[phone];
+  const cleanPhone = phone.trim().replace(/\D/g, '');
+  const user = state.users[cleanPhone];
   if (!user) {
     return { error: "El usuario no existe o el número de teléfono es incorrecto." };
   }
@@ -967,14 +968,19 @@ export function getReferralNetworkDetails(phone: string): {
   levelC: ReferredDetails[];
   totalEarnings: number;
 } {
+  const cleanPhone = phone.trim().replace(/\D/g, '');
   const state = getDbState();
   const users = Object.values(state.users);
 
-  // Level A: referredBy === phone
+  // Level A: referredBy matched to cleanPhone
   const levelA = users
-    .filter(u => u.referredBy === phone)
+    .filter(u => {
+      if (!u.referredBy) return false;
+      const refClean = u.referredBy.trim().replace(/\D/g, '');
+      return refClean === cleanPhone;
+    })
     .map(u => ({
-      phone: u.phone,
+      phone: u.phone.trim().replace(/\D/g, ''),
       registeredAt: u.registeredAt,
       totalRecharged: u.totalRecharged
     }));
@@ -982,9 +988,13 @@ export function getReferralNetworkDetails(phone: string): {
   // Level B: referredBy owned by anyone in Level A
   const levelAPhones = levelA.map(u => u.phone);
   const levelB = users
-    .filter(u => u.referredBy && levelAPhones.includes(u.referredBy))
+    .filter(u => {
+      if (!u.referredBy) return false;
+      const refClean = u.referredBy.trim().replace(/\D/g, '');
+      return levelAPhones.includes(refClean);
+    })
     .map(u => ({
-      phone: u.phone,
+      phone: u.phone.trim().replace(/\D/g, ''),
       registeredAt: u.registeredAt,
       totalRecharged: u.totalRecharged
     }));
@@ -992,16 +1002,23 @@ export function getReferralNetworkDetails(phone: string): {
   // Level C: referredBy owned by anyone in Level B
   const levelBPhones = levelB.map(u => u.phone);
   const levelC = users
-    .filter(u => u.referredBy && levelBPhones.includes(u.referredBy))
+    .filter(u => {
+      if (!u.referredBy) return false;
+      const refClean = u.referredBy.trim().replace(/\D/g, '');
+      return levelBPhones.includes(refClean);
+    })
     .map(u => ({
-      phone: u.phone,
+      phone: u.phone.trim().replace(/\D/g, ''),
       registeredAt: u.registeredAt,
       totalRecharged: u.totalRecharged
     }));
 
-  // Calculate total commission earned from history for this user
+  // Calculate total commission earned from history for this user using cleaned phone
   const totalEarnings = state.history
-    .filter(h => h.phone === phone && h.type === 'comision')
+    .filter(h => {
+      const histPhoneClean = h.phone.trim().replace(/\D/g, '');
+      return histPhoneClean === cleanPhone && h.type === 'comision';
+    })
     .reduce((acc, current) => acc + current.amount, 0);
 
   return { levelA, levelB, levelC, totalEarnings };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Check, Users, ShieldAlert, Award, ChevronDown, ChevronUp, Link, Sparkles } from 'lucide-react';
+import { Copy, Check, Users, ShieldAlert, Award, ChevronDown, ChevronUp, Link, Sparkles, RefreshCw } from 'lucide-react';
 import { User } from '../types';
-import { getReferralNetworkDetails, ReferredDetails } from '../lib/state';
+import { getReferralNetworkDetails, ReferredDetails, syncStateWithSupabase } from '../lib/state';
 
 interface TeamProps {
   user: User;
@@ -10,6 +10,7 @@ interface TeamProps {
 export default function Team({ user }: TeamProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // Segment collapsible states
   const [openA, setOpenA] = useState(true);
@@ -23,10 +24,27 @@ export default function Team({ user }: TeamProps) {
     totalEarnings: 0
   });
 
+  const performSync = async (silent = false) => {
+    if (!silent) setIsSyncing(true);
+    try {
+      // Sync from Supabase to fetch new users/referrals registered across and on other devices
+      await syncStateWithSupabase();
+      const details = getReferralNetworkDetails(user.phone);
+      setNetwork(details);
+    } catch (e) {
+      console.error("Error refreshing referral network:", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => {
-    // Fetch network details
+    // Initial direct fetch from current local storage state so it shows up immediately
     const details = getReferralNetworkDetails(user.phone);
     setNetwork(details);
+    
+    // Auto sync from server to find newly registered referrals
+    performSync(true);
   }, [user.phone]);
 
   const referralLink = typeof window !== 'undefined' 
@@ -50,9 +68,21 @@ export default function Team({ user }: TeamProps) {
     <div className="space-y-6 pb-24 font-sans text-left">
       
       {/* Title Block */}
-      <div className="px-1">
-        <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Mi Red de Afiliados Sport</h2>
-        <p className="text-xs text-slate-400 font-medium font-sans">Construye una escudería de referidos de 3 niveles y percibe jugosas comisiones directas sobre cada recarga aprobada.</p>
+      <div className="px-1 flex justify-between items-start gap-3">
+        <div>
+          <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Mi Red de Afiliados Sport</h2>
+          <p className="text-xs text-slate-400 font-medium font-sans">Construye una escudería de referidos de 3 niveles y percibe jugosas comisiones directas sobre cada recarga aprobada.</p>
+        </div>
+        <button
+          type="button"
+          id="btn-refresh-team"
+          onClick={() => performSync(false)}
+          disabled={isSyncing}
+          className="p-2.5 bg-slate-100/80 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-705 active:scale-95 rounded-2xl flex items-center justify-center border border-slate-200/60 transition-all cursor-pointer shadow-sm disabled:opacity-50 mt-1 flex-shrink-0"
+          title="Actualizar Equipo"
+        >
+          <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin text-orange-600' : ''}`} />
+        </button>
       </div>
 
       {/* Invite Info Card */}
