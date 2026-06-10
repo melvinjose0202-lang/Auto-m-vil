@@ -1,0 +1,917 @@
+import { User, VIPConfig, RechargeRequest, WithdrawRequest, HistoryItem } from '../types';
+import {
+  seedSupabaseIfNeeded,
+  fetchFullStateFromSupabase,
+  upsertUserToSupabase,
+  upsertRechargeToSupabase,
+  upsertWithdrawalToSupabase,
+  upsertHistoryToSupabase,
+  upsertReferralToSupabase,
+  supabase
+} from './supabase';
+
+
+export const VIP_LEVELS: VIPConfig[] = [
+  {
+    id: 1,
+    name: "VIP 1",
+    price: 300,
+    dailyYield: 0.05,
+    carName: "SUV Compacto Tucson",
+    carCategory: "SUV Sport",
+    carImageName: "suv_compact"
+  },
+  {
+    id: 2,
+    name: "VIP 2",
+    price: 800,
+    dailyYield: 0.05,
+    carName: "Civic Type R Executive",
+    carCategory: "Sedán Deportivo",
+    carImageName: "sedan_deportivo"
+  },
+  {
+    id: 3,
+    name: "VIP 3",
+    price: 2000,
+    dailyYield: 0.05,
+    carName: "Mustang GT Coupé",
+    carCategory: "Muscle Car Lujo",
+    carImageName: "muscle_car"
+  },
+  {
+    id: 4,
+    name: "VIP 4",
+    price: 5000,
+    dailyYield: 0.05,
+    carName: "Porsche 911 Carrera S",
+    carCategory: "Superdeportivo",
+    carImageName: "superdeportivo"
+  },
+  {
+    id: 5,
+    name: "VIP 5",
+    price: 9000,
+    dailyYield: 0.05,
+    carName: "Lamborghini Huracán Evo",
+    carCategory: "Hiperdeportivo VIP",
+    carImageName: "hiperdeportivo"
+  },
+  {
+    id: 6,
+    name: "VIP 6",
+    price: 12000,
+    dailyYield: 0.05,
+    carName: "Bugatti Chiron Sport",
+    carCategory: "Hypercar Exótico",
+    carImageName: "exotic_hypercar"
+  }
+];
+
+interface DBState {
+  users: Record<string, User>;
+  recharges: RechargeRequest[];
+  withdrawals: WithdrawRequest[];
+  history: HistoryItem[];
+}
+
+const STORAGE_KEY = "autosport_state_db";
+
+const DEFAULT_USERS: Record<string, User> = {
+  // Developer/Admin predefined credentials
+  "8097617087": {
+    phone: "8097617087",
+    password: "lafama0213",
+    balance: 50000,
+    registeredAt: "2026-05-01T12:00:00Z",
+    vips: [1, 2, 3],
+    totalRecharged: 15000,
+    totalWithdrawn: 1000,
+    registrationBonusClaimed: true,
+    status: 'active'
+  },
+  // Sample referred users to seed the team network so it looks stunning immediately
+  "8091112222": {
+    phone: "8091112222",
+    password: "password123",
+    balance: 1450,
+    registeredAt: "2026-06-01T10:00:00Z",
+    referredBy: "8099998888", // referral links
+    vips: [1],
+    totalRecharged: 300,
+    totalWithdrawn: 0,
+    registrationBonusClaimed: true,
+    status: 'active'
+  },
+  "8092223333": {
+    phone: "8092223333",
+    password: "password123",
+    balance: 3200,
+    registeredAt: "2026-06-02T14:30:00Z",
+    referredBy: "8091112222", // A Level B for 8099998888
+    vips: [1, 2],
+    totalRecharged: 1100,
+    totalWithdrawn: 100,
+    registrationBonusClaimed: true,
+    status: 'active'
+  },
+  "8093334444": {
+    phone: "8093334444",
+    password: "password123",
+    balance: 600,
+    registeredAt: "2026-06-03T09:15:00Z",
+    referredBy: "8092223333", // A Level C for 8099998888
+    vips: [],
+    totalRecharged: 500,
+    totalWithdrawn: 0,
+    registrationBonusClaimed: true,
+    status: 'active'
+  }
+};
+
+const DEFAULT_STATE: DBState = {
+  users: DEFAULT_USERS,
+  recharges: [
+    {
+      id: "R-1001",
+      phone: "8091112222",
+      amount: 300,
+      paymentMethod: "Banco Popular",
+      reference: "POP-982138",
+      receiptName: "comprobante_deposito.jpg",
+      status: "aprobado",
+      date: "2026-06-01T10:15:00Z"
+    },
+    {
+      id: "R-1002",
+      phone: "8092223333",
+      amount: 800,
+      paymentMethod: "USDT TRC20",
+      reference: "0x7bc...22a1",
+      receiptName: "usdt_hash_screenshot.png",
+      status: "aprobado",
+      date: "2026-06-02T14:45:00Z"
+    },
+    {
+      id: "R-1003",
+      phone: "8092223333",
+      amount: 300,
+      paymentMethod: "Banreservas",
+      reference: "RES-9912",
+      receiptName: "voucher.jpg",
+      status: "aprobado",
+      date: "2026-06-03T11:00:00Z"
+    },
+    {
+      id: "R-1004",
+      phone: "8093334444",
+      amount: 500,
+      paymentMethod: "BHD",
+      reference: "BHD-77402",
+      receiptName: "bhd_screenshot.png",
+      status: "pendiente",
+      date: "2026-06-09T18:40:00Z"
+    }
+  ],
+  withdrawals: [
+    {
+      id: "W-3001",
+      phone: "8092223333",
+      amount: 100,
+      netAmount: 88,
+      commission: 12,
+      status: "completado",
+      date: "2026-06-05T14:10:00Z"
+    }
+  ],
+  history: [
+    {
+      id: "H-5001",
+      phone: "8091112222",
+      type: "bono",
+      amount: 20,
+      description: "Bono de bienvenida por registro",
+      date: "2026-06-01T10:00:00Z"
+    },
+    {
+      id: "H-5002",
+      phone: "8092223333",
+      type: "bono",
+      amount: 20,
+      description: "Bono de bienvenida por registro",
+      date: "2026-06-02T14:30:00Z"
+    },
+    {
+      id: "H-5003",
+      phone: "8093334444",
+      type: "bono",
+      amount: 20,
+      description: "Bono de bienvenida por registro",
+      date: "2026-06-03T09:15:00Z"
+    },
+    {
+      id: "H-5004",
+      phone: "8091112222",
+      type: "comision",
+      amount: 80, // 10% of 800 from 8092223333
+      description: "Comisión Equipo A - Registro de recarga de 8092223333",
+      date: "2026-06-02T14:45:00Z"
+    }
+  ]
+};
+
+// State load helper
+export function getDbState(): DBState {
+  if (typeof window === "undefined") return DEFAULT_STATE;
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_STATE));
+    return DEFAULT_STATE;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return DEFAULT_STATE;
+  }
+}
+
+// State save helper
+function saveDbState(state: DBState) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+}
+
+// Clear state to defaults
+export function resetToDefaults() {
+  saveDbState(DEFAULT_STATE);
+}
+
+// Synchronize database with Supabase if configured
+export async function syncStateWithSupabase(): Promise<DBState> {
+  const currentState = getDbState();
+  if (!supabase) return currentState;
+
+  try {
+    // 1. Seed Supabase if empty and tables are available
+    await seedSupabaseIfNeeded(
+      DEFAULT_USERS,
+      DEFAULT_STATE.recharges,
+      DEFAULT_STATE.withdrawals,
+      DEFAULT_STATE.history
+    );
+
+    // 2. Fetch full state from Supabase
+    const supabaseData = await fetchFullStateFromSupabase();
+    if (supabaseData) {
+      saveDbState(supabaseData);
+      return supabaseData;
+    }
+  } catch (e) {
+    console.error("syncStateWithSupabase error:", e);
+  }
+  return currentState;
+}
+
+
+// Synchronize daily automatic yields (offline-first simulator)
+// Checks if the user is due for yields based on elapsed days (or just has a daily yield simulator button)
+// We will have a physical interactive yield collection that is highly rewarding! 
+
+/**
+ * Register a new user
+ * Returns error string if unsuccessful, or null on success
+ */
+export function registerUser(phone: string, password: string, referrerPhone?: string): { error: string | null; user?: User } {
+  const state = getDbState();
+  if (state.users[phone]) {
+    return { error: "Este número de teléfono ya está registrado." };
+  }
+
+  // Validate referral code if provided
+  if (referrerPhone && referrerPhone.trim() !== "") {
+    const trimmedRef = referrerPhone.trim();
+    if (!state.users[trimmedRef]) {
+      return { error: "El código / teléfono de referido ingresado no es válido." };
+    }
+  }
+
+  const newUser: User = {
+    phone,
+    password,
+    balance: 20, // Welcome bonus of 20 pesos!
+    registeredAt: new Date().toISOString(),
+    referredBy: referrerPhone && referrerPhone.trim() !== "" ? referrerPhone.trim() : undefined,
+    vips: [],
+    totalRecharged: 0,
+    totalWithdrawn: 0,
+    registrationBonusClaimed: true,
+    status: 'active'
+  };
+
+  state.users[phone] = newUser;
+
+  // Log Welcome bonus in history
+  const historyId = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+  const bonusHistory: HistoryItem = {
+    id: historyId,
+    phone,
+    type: "bono",
+    amount: 20,
+    description: "Bono de bienvenida Auto Sport",
+    date: new Date().toISOString()
+  };
+  state.history.unshift(bonusHistory);
+
+  saveDbState(state);
+
+  // Background sync
+  upsertUserToSupabase(newUser);
+  upsertHistoryToSupabase(bonusHistory);
+
+  // If referred, log connection in the database
+  if (newUser.referredBy) {
+    const refLogId = "R-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+    upsertReferralToSupabase(refLogId, newUser.referredBy, phone, 'A', newUser.registeredAt);
+  }
+
+  return { error: null, user: newUser };
+}
+
+/**
+ * Login user
+ */
+export function loginUser(phone: string, password: string): { error: string | null; user?: User } {
+  const state = getDbState();
+  const user = state.users[phone];
+  if (!user) {
+    return { error: "El usuario no existe o el número de teléfono es incorrecto." };
+  }
+  if (user.password !== password) {
+    return { error: "La contraseña es incorrecta." };
+  }
+  return { error: null, user };
+}
+
+/**
+ * Submit a recharging request
+ */
+export function submitRecharge(
+  phone: string,
+  amount: number,
+  paymentMethod: string,
+  reference: string,
+  receiptUrl?: string,
+  receiptName: string = "comprobante.png"
+): { error: string | null; request?: RechargeRequest } {
+  if (amount < 300) {
+    return { error: "La recarga mínima es de RD$300." };
+  }
+  if (!reference.trim()) {
+    return { error: "Por favor, ingresa el número de referencia del depósito." };
+  }
+
+  const state = getDbState();
+  const requestId = "R-" + Math.floor(100000 + Math.random() * 900000);
+
+  const newRequest: RechargeRequest = {
+    id: requestId,
+    phone,
+    amount,
+    paymentMethod,
+    reference: reference.trim(),
+    receiptName,
+    receiptUrl,
+    status: 'pendiente',
+    date: new Date().toISOString()
+  };
+
+  state.recharges.unshift(newRequest);
+  saveDbState(state);
+
+  // Background sync
+  upsertRechargeToSupabase(newRequest);
+
+  return { error: null, request: newRequest };
+}
+
+/**
+ * Submit a withdrawal request
+ * - Minimum 100 pesos
+ * - Only round/even amounts like 100, 140, 160, 200, 400, 600 (multiples of 20)
+ * - 12% commission
+ * - Only 1 withdrawal per day
+ * - Allowed from 1:00 PM to 6:00 PM (13:00 to 18:00) DR Time
+ */
+export function submitWithdrawal(phone: string, amountStr: string): { error: string | null; request?: WithdrawRequest } {
+  const amount = parseInt(amountStr, 10);
+  if (isNaN(amount) || amount <= 0) {
+    return { error: "Monto de retiro inválido." };
+  }
+
+  if (amount < 100) {
+    return { error: "El mínimo de retiro son RD$100." };
+  }
+
+  // Validate "round/redondos" amount check.
+  // The user says "solo números redondos, por ejemplo 100, 140, 200, 160, 400, 600".
+  // This means the number should be a multiple of 10 or 20, and not uneven fractions like 192, 198.
+  // Let's check amounts like 110, 150, 140, which are multiples of 10 or 20.
+  // Let's enforce amount must be a multiple of 20 (or 10) to be perfectly "redondo". Multiples of 20 matches all examples (100, 140, 160, 200, 400, 600 are all divisible by 20!).
+  if (amount % 20 !== 0) {
+    return { error: "Monto inválido. Los retiros solo están permitidos en números redondos (ej. 100, 120, 140, 160, 200, 300, 400, 600)." };
+  }
+
+  const state = getDbState();
+  const user = state.users[phone];
+  if (!user) {
+    return { error: "Usuario no encontrado." };
+  }
+
+  if (user.balance < amount) {
+    return { error: `Saldo insuficiente. Tu saldo disponible para retiro es: RD$${user.balance.toFixed(2)}.` };
+  }
+
+  // Check 1 withdrawal per day limit
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const userWithdrawalsToday = state.withdrawals.filter(w => 
+    w.phone === phone && 
+    new Date(w.date) >= todayStart && 
+    w.status !== 'cancelado'
+  );
+
+  if (userWithdrawalsToday.length >= 1) {
+    return { error: "Límite alcanzado. Solo se permite 1 retiro por día." };
+  }
+
+  // Check time frame restriction (1:00 PM to 6:00 PM Dominica Time).
+  // DR is GMT-4. Let's look at coordinates.
+  // We can evaluate the local hour of the client browser.
+  // To protect simplicity and robust testing, let's look at the current date/hour.
+  // We can show a toggle or detect the hour using local timezone.
+  const now = new Date();
+  const currentHour = now.getHours(); // Local hour of browser
+  
+  // Let's make it check 13 (1:00 PM) to 18 (6:00 PM) inclusive,
+  // but let's provide a clear message. Under some test conditions, the user might test this at night,
+  // so we should provide a beautiful, friendly override or warning mode, while strictly validating.
+  // Let's write the strict validation but allow a "Simulador de Horario" toggle in Profile or Dev settings,
+  // OR just calculate the hour in Dominican time (UTC - 4h).
+  // Current UTC time is given: 2026-06-10T04:49:01Z.
+  // DR Time is UTC - 4 hours. So if UTC is 04:49, DR time is 00:49 (12:49 AM).
+  // Let's programmatically obtain the current DR hour:
+  const utcOffsetHours = now.getTimezoneOffset() / 60; // e.g. 4 or 5
+  // Calculate DR time (UTC-4)
+  const drDate = new Date(now.getTime() + (now.getTimezoneOffset() - 240) * 60000);
+  const drHour = drDate.getHours();
+
+  if (drHour < 13 || drHour >= 18) {
+    // We strictly enforce the hour but provide a visual disclaimer in the error, & let them bypass in "Simular Horario" or have a dev info box
+    return { 
+      error: `Horario no habilitado. Los retiros solo están habilitados de 1:00 PM a 6:00 PM (Hora de República Dominicana). Hora actual en RD: ${drDate.toLocaleTimeString('es-DO', {hour: '2-digit', minute:'2-digit', hour12: true})}.`
+    };
+  }
+
+  const commission = Number((amount * 0.12).toFixed(2));
+  const netAmount = amount - commission;
+  const requestId = "W-" + Math.floor(100000 + Math.random() * 900000);
+
+  const newRequest: WithdrawRequest = {
+    id: requestId,
+    phone,
+    amount,
+    netAmount,
+    commission,
+    status: 'pendiente',
+    date: new Date().toISOString()
+  };
+
+  // Deduct user balance immediately to avoid double spend. If rejected, it will be refunded.
+  user.balance -= amount;
+  user.totalWithdrawn += amount;
+  state.users[phone] = user;
+
+  // Log in ledger history
+  const historyId = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+  const histItem: HistoryItem = {
+    id: historyId,
+    phone,
+    type: "retiro",
+    amount,
+    description: `Solicitud de Retiro de RD$${amount} (Comisión 12% RD$${commission})`,
+    date: new Date().toISOString()
+  };
+  state.history.unshift(histItem);
+
+  state.withdrawals.unshift(newRequest);
+  saveDbState(state);
+
+  // Background sync
+  upsertUserToSupabase(user);
+  upsertWithdrawalToSupabase(newRequest);
+  upsertHistoryToSupabase(histItem);
+
+  return { error: null, request: newRequest };
+}
+
+/**
+ * Buy a VIP Level
+ * - Cannot buy the same VIP twice
+ * - Deducts core price from balance
+ */
+export function purchaseVIP(phone: string, vipId: number): { error: string | null; user?: User } {
+  const vip = VIP_LEVELS.find(v => v.id === vipId);
+  if (!vip) {
+    return { error: "El nivel VIP seleccionado es inválido." };
+  }
+
+  const state = getDbState();
+  const user = state.users[phone];
+  if (!user) {
+    return { error: "Usuario no encontrado." };
+  }
+
+  if (user.vips.includes(vipId)) {
+    return { error: "Ya has adquirido este nivel VIP. No se puede comprar el mismo VIP dos veces." };
+  }
+
+  if (user.balance < vip.price) {
+    return { error: `Saldo insuficiente. El costo del ${vip.name} es RD$${vip.price}. Tu saldo actual es RD$${user.balance.toFixed(2)}.` };
+  }
+
+  // Deduct balance, add to owned VIPs
+  user.balance -= vip.price;
+  user.vips.push(vipId);
+  user.vips.sort((a,b) => a-b);
+  state.users[phone] = user;
+
+  // Log in history
+  const historyId = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+  const histItem: HistoryItem = {
+    id: historyId,
+    phone,
+    type: "rendimiento", // using this category or custom
+    amount: -vip.price,
+    description: `Compra de ${vip.name} (${vip.carName})`,
+    date: new Date().toISOString()
+  };
+  state.history.unshift(histItem);
+
+  saveDbState(state);
+
+  // Background sync
+  upsertUserToSupabase(user);
+  upsertHistoryToSupabase(histItem);
+
+  return { error: null, user };
+}
+
+/**
+ * Interactive engine to collect daily yields for owned VIPs
+ */
+export function claimDailyVehicleYields(phone: string): { success: boolean; earned: number; message: string } {
+  const state = getDbState();
+  const user = state.users[phone];
+  if (!user) {
+    return { success: false, earned: 0, message: "Usuario no encontrado." };
+  }
+
+  if (user.vips.length === 0) {
+    return { success: false, earned: 0, message: "Aún no tienes ningún vehículo VIP activo para generar rendimientos." };
+  }
+
+  let totalEarned = 0;
+  const activatedCars: string[] = [];
+
+  user.vips.forEach(vipId => {
+    const vip = VIP_LEVELS.find(v => v.id === vipId);
+    if (vip) {
+      const yieldAmount = vip.price * vip.dailyYield; // 5% of cost
+      totalEarned += yieldAmount;
+      activatedCars.push(vip.carName);
+    }
+  });
+
+  // Credit user available balance
+  user.balance += totalEarned;
+  state.users[phone] = user;
+
+  // Log in history
+  const historyId = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+  const histItem: HistoryItem = {
+    id: historyId,
+    phone,
+    type: "rendimiento",
+    amount: totalEarned,
+    description: `Rendimiento diario de un 5% de autos: ${activatedCars.join(", ")}`,
+    date: new Date().toISOString()
+  };
+  state.history.unshift(histItem);
+
+  saveDbState(state);
+
+  // Background sync
+  upsertUserToSupabase(user);
+  upsertHistoryToSupabase(histItem);
+
+  return {
+    success: true,
+    earned: totalEarned,
+    message: `¡Excelentes noticias! Tus motores rugieron y generaron un rendimiento del 5% diario por valor de RD$${totalEarned.toFixed(2)} pesos dominicanos.`
+  };
+}
+
+/**
+ * Admin: Approve a Recharge Request
+ * - Adds exactly the requested amount to the user's available balance (stops duplication)
+ * - Sets status to 'aprobado'
+ * - Distributes referral commissions up to 3 levels:
+ *    - Level A (direct referrer): 10%
+ *    - Level B (referrer of A): 2%
+ *    - Level C (referrer of B): 1%
+ */
+export function approveRechargeRequest(requestId: string): { error: string | null } {
+  const state = getDbState();
+  const reqIndex = state.recharges.findIndex(r => r.id === requestId);
+  if (reqIndex === -1) {
+    return { error: "Solicitud de recarga no encontrada." };
+  }
+
+  const recharge = state.recharges[reqIndex];
+  if (recharge.status !== 'pendiente') {
+    return { error: "Esta solicitud de recarga ya fue procesada anteriormente." };
+  }
+
+  const userPhone = recharge.phone;
+  const user = state.users[userPhone];
+  if (!user) {
+    return { error: "El usuario solicitante de la recarga ya no existe." };
+  }
+
+  // Update recharge status
+  recharge.status = 'aprobado';
+  state.recharges[reqIndex] = recharge;
+
+  // Credit the exact amount to user balance
+  user.balance += recharge.amount;
+  user.totalRecharged += recharge.amount;
+  state.users[userPhone] = user;
+
+  // Log in history
+  const historyId = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+  const rechargeHistoryItem: HistoryItem = {
+    id: historyId,
+    phone: userPhone,
+    type: "recarga",
+    amount: recharge.amount,
+    description: `Recarga aprobada de RD$${recharge.amount} (${recharge.paymentMethod})`,
+    date: new Date().toISOString()
+  };
+  state.history.unshift(rechargeHistoryItem);
+
+  // Background lists to sync
+  const usersToSync: User[] = [user];
+  const historyToSync: HistoryItem[] = [rechargeHistoryItem];
+
+  // Calculate and distribute multi-level referral commissions
+  // Ensure no duplicate commissions can trigger on double click by verifying recharge status is handled.
+  let currentReferrerPhone = user.referredBy;
+
+  // LEVEL A (10%)
+  if (currentReferrerPhone && state.users[currentReferrerPhone]) {
+    const commissionA = recharge.amount * 0.10;
+    const refUserA = state.users[currentReferrerPhone];
+    refUserA.balance += commissionA;
+    state.users[currentReferrerPhone] = refUserA;
+    usersToSync.push(refUserA);
+
+    // Log commission history
+    const commIdA = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+    const commAHistory: HistoryItem = {
+      id: commIdA,
+      phone: currentReferrerPhone,
+      type: "comision",
+      amount: commissionA,
+      description: `Comisión Equipo A (10%) por recarga de ${userPhone} (RD$${recharge.amount})`,
+      date: new Date().toISOString()
+    };
+    state.history.unshift(commAHistory);
+    historyToSync.push(commAHistory);
+
+    // Move to LEVEL B
+    currentReferrerPhone = refUserA.referredBy;
+    if (currentReferrerPhone && state.users[currentReferrerPhone]) {
+      const commissionB = recharge.amount * 0.02;
+      const refUserB = state.users[currentReferrerPhone];
+      refUserB.balance += commissionB;
+      state.users[currentReferrerPhone] = refUserB;
+      usersToSync.push(refUserB);
+
+      const commIdB = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+      const commBHistory: HistoryItem = {
+        id: commIdB,
+        phone: currentReferrerPhone,
+        type: "comision",
+        amount: commissionB,
+        description: `Comisión Equipo B (2%) por recarga de ${userPhone} (RD$${recharge.amount})`,
+        date: new Date().toISOString()
+      };
+      state.history.unshift(commBHistory);
+      historyToSync.push(commBHistory);
+
+      // Move to LEVEL C
+      currentReferrerPhone = refUserB.referredBy;
+      if (currentReferrerPhone && state.users[currentReferrerPhone]) {
+        const commissionC = recharge.amount * 0.01;
+        const refUserC = state.users[currentReferrerPhone];
+        refUserC.balance += commissionC;
+        state.users[currentReferrerPhone] = refUserC;
+        usersToSync.push(refUserC);
+
+        const commIdC = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+        const commCHistory: HistoryItem = {
+          id: commIdC,
+          phone: currentReferrerPhone,
+          type: "comision",
+          amount: commissionC,
+          description: `Comisión Equipo C (1%) por recarga de ${userPhone} (RD$${recharge.amount})`,
+          date: new Date().toISOString()
+        };
+        state.history.unshift(commCHistory);
+        historyToSync.push(commCHistory);
+      }
+    }
+  }
+
+  saveDbState(state);
+
+  // Background sync everything
+  upsertRechargeToSupabase(recharge);
+  usersToSync.forEach(u => upsertUserToSupabase(u));
+  historyToSync.forEach(h => upsertHistoryToSupabase(h));
+
+  return { error: null };
+}
+
+/**
+ * Admin: Deny Recharge Request
+ */
+export function denyRechargeRequest(requestId: string): { error: string | null } {
+  const state = getDbState();
+  const reqIndex = state.recharges.findIndex(r => r.id === requestId);
+  if (reqIndex === -1) {
+    return { error: "Solicitud no encontrada." };
+  }
+
+  const recharge = state.recharges[reqIndex];
+  if (recharge.status !== 'pendiente') {
+    return { error: "Esta solicitud ya fue procesada anteriormente." };
+  }
+
+  recharge.status = 'denegado';
+  state.recharges[reqIndex] = recharge;
+  
+  saveDbState(state);
+
+  // Background sync
+  upsertRechargeToSupabase(recharge);
+
+  return { error: null };
+}
+
+/**
+ * Admin: Approve/Complete Withdrawal
+ */
+export function approveWithdrawalRequest(withdrawId: string): { error: string | null } {
+  const state = getDbState();
+  const reqIndex = state.withdrawals.findIndex(w => w.id === withdrawId);
+  if (reqIndex === -1) {
+    return { error: "Retiro no encontrado." };
+  }
+
+  const withdrawal = state.withdrawals[reqIndex];
+  if (withdrawal.status !== 'pendiente') {
+    return { error: "Este retiro ya fue procesado." };
+  }
+
+  withdrawal.status = 'completado';
+  state.withdrawals[reqIndex] = withdrawal;
+
+  saveDbState(state);
+
+  // Background sync
+  upsertWithdrawalToSupabase(withdrawal);
+
+  return { error: null };
+}
+
+/**
+ * Admin: Deny/Cancel Withdrawal (refunds user)
+ */
+export function denyWithdrawalRequest(withdrawId: string): { error: string | null } {
+  const state = getDbState();
+  const reqIndex = state.withdrawals.findIndex(w => w.id === withdrawId);
+  if (reqIndex === -1) {
+    return { error: "Retiro no encontrado." };
+  }
+
+  const withdrawal = state.withdrawals[reqIndex];
+  if (withdrawal.status !== 'pendiente') {
+    return { error: "Este retiro ya fue procesado." };
+  }
+
+  withdrawal.status = 'cancelado';
+  state.withdrawals[reqIndex] = withdrawal;
+
+  // Refund the user!
+  const user = state.users[withdrawal.phone];
+  let histItem: HistoryItem | undefined;
+  if (user) {
+    user.balance += withdrawal.amount;
+    user.totalWithdrawn -= withdrawal.amount;
+    state.users[withdrawal.phone] = user;
+
+    // Log the refund
+    const refundHistoryId = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+    histItem = {
+      id: refundHistoryId,
+      phone: withdrawal.phone,
+      type: "bono",
+      amount: withdrawal.amount,
+      description: `Reembolso de Retiro Rechazado o Cancelado por Admin (RD$${withdrawal.amount})`,
+      date: new Date().toISOString()
+    };
+    state.history.unshift(histItem);
+  }
+
+  saveDbState(state);
+
+  // Background sync
+  upsertWithdrawalToSupabase(withdrawal);
+  if (user) {
+    upsertUserToSupabase(user);
+    if (histItem) {
+      upsertHistoryToSupabase(histItem);
+    }
+  }
+
+  return { error: null };
+}
+
+/**
+ * Returns referral information separated into three tiers explicitly:
+ * Level A (direct referred), Level B (grandchildren), Level C (great-grandchildren)
+ * with details on total amount recharged by each.
+ */
+export interface ReferredDetails {
+  phone: string;
+  registeredAt: string;
+  totalRecharged: number;
+}
+
+export function getReferralNetworkDetails(phone: string): {
+  levelA: ReferredDetails[];
+  levelB: ReferredDetails[];
+  levelC: ReferredDetails[];
+  totalEarnings: number;
+} {
+  const state = getDbState();
+  const users = Object.values(state.users);
+
+  // Level A: referredBy === phone
+  const levelA = users
+    .filter(u => u.referredBy === phone)
+    .map(u => ({
+      phone: u.phone,
+      registeredAt: u.registeredAt,
+      totalRecharged: u.totalRecharged
+    }));
+
+  // Level B: referredBy owned by anyone in Level A
+  const levelAPhones = levelA.map(u => u.phone);
+  const levelB = users
+    .filter(u => u.referredBy && levelAPhones.includes(u.referredBy))
+    .map(u => ({
+      phone: u.phone,
+      registeredAt: u.registeredAt,
+      totalRecharged: u.totalRecharged
+    }));
+
+  // Level C: referredBy owned by anyone in Level B
+  const levelBPhones = levelB.map(u => u.phone);
+  const levelC = users
+    .filter(u => u.referredBy && levelBPhones.includes(u.referredBy))
+    .map(u => ({
+      phone: u.phone,
+      registeredAt: u.registeredAt,
+      totalRecharged: u.totalRecharged
+    }));
+
+  // Calculate total commission earned from history for this user
+  const totalEarnings = state.history
+    .filter(h => h.phone === phone && h.type === 'comision')
+    .reduce((acc, current) => acc + current.amount, 0);
+
+  return { levelA, levelB, levelC, totalEarnings };
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Auto Sport",
+  "description": "Plataforma de inversión de alta gama para la República Dominicana con sistema VIP de vehículos de lujo, gestión de equipos de referidos y panel de administración.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
