@@ -296,3 +296,52 @@ export async function upsertReferralToSupabase(id: string, referrerPhone: string
   }
 }
 
+/**
+ * Synchronize complete registration sequence in proper order:
+ * 1. Upsert optional stub referrer user
+ * 2. Upsert newly registered user
+ * 3. Upsert welcome bonus history item
+ * 4. Upsert referral line to satisfy constraints
+ */
+export async function syncRegistrationToSupabase(newUser: User, bonusHistory: HistoryItem, stubReferrer?: User) {
+  if (!supabase) return;
+  try {
+    // 1. If there's a stub referrer, we must upsert it FIRST so foreign keys are satisfied!
+    if (stubReferrer) {
+      const rowStub = mapUserToDB(stubReferrer);
+      const { error: stubErr } = await supabase.from('users').upsert(rowStub);
+      if (stubErr) console.error("Error upserting stub referrer:", stubErr.message);
+    }
+
+    // 2. Upsert the new registered user
+    const rowUser = mapUserToDB(newUser);
+    const { error: userErr } = await supabase.from('users').upsert(rowUser);
+    if (userErr) {
+      console.error("Error upserting new user:", userErr.message);
+    }
+
+    // 3. Insert welcome bonus history item
+    const rowHist = mapHistoryToDB(bonusHistory);
+    const { error: histErr } = await supabase.from('history').upsert(rowHist);
+    if (histErr) console.error("Error upserting registration history bonus:", histErr.message);
+
+    // 4. Finally, insert the referral line
+    if (newUser.referredBy) {
+      const refLogId = "R-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+      const { error: refErr } = await supabase.from('referrals').upsert({
+        id: refLogId,
+        referrer_phone: newUser.referredBy.trim().replace(/\D/g, ''),
+        referred_phone: newUser.phone.trim().replace(/\D/g, ''),
+        level: 'A',
+        date: newUser.registeredAt
+      });
+      if (refErr) {
+        console.warn("Could not insert referral log into Supabase referrals table:", refErr.message);
+      }
+    }
+  } catch (err) {
+    console.error("syncRegistrationToSupabase error:", err);
+  }
+}
+
+
