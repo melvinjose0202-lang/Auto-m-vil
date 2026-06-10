@@ -311,13 +311,7 @@ export default function LoginRegister({ onAuthSuccess }: LoginRegisterProps) {
             </div>
           </form>
 
-          {/* Test Admin / Credentials Helper inside form */}
-          <div className="mt-8 p-3 bg-slate-50 border border-slate-200 border-dashed rounded-xl text-center">
-            <span className="text-xs text-slate-500 font-semibold block">Panel Administrativo de Demostración:</span>
-            <span className="text-xs text-slate-600 block mt-1 font-mono">
-              Usuario: <strong className="text-orange-600">8097617087</strong> • Clave: <strong className="text-orange-600">lafama0213</strong>
-            </span>
-          </div>
+
 
         </div>
       </div>
