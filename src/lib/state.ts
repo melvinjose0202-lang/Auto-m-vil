@@ -90,6 +90,18 @@ const DEFAULT_USERS: Record<string, User> = {
     registrationBonusClaimed: true,
     status: 'active'
   },
+  // Official Root Referral Account requested by the user
+  "8093965618": {
+    phone: "8093965618",
+    password: "la fama",
+    balance: 1000,
+    registeredAt: "2026-06-10T12:00:00Z",
+    vips: [1, 2],
+    totalRecharged: 1100,
+    totalWithdrawn: 0,
+    registrationBonusClaimed: true,
+    status: 'active'
+  },
   // Sample referred users to seed the team network so it looks stunning immediately
   "8091112222": {
     phone: "8091112222",
@@ -224,15 +236,36 @@ const DEFAULT_STATE: DBState = {
 export function getDbState(): DBState {
   if (typeof window === "undefined") return DEFAULT_STATE;
   const raw = localStorage.getItem(STORAGE_KEY);
+  let stateObj: DBState;
   if (!raw) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_STATE));
-    return DEFAULT_STATE;
+    stateObj = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj));
+  } else {
+    try {
+      stateObj = JSON.parse(raw);
+    } catch (e) {
+      stateObj = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    }
   }
-  try {
-    return JSON.parse(raw);
-  } catch (e) {
-    return DEFAULT_STATE;
+
+  // Ensure our official root referer "8093965618" is always available in state
+  if (stateObj && stateObj.users && !stateObj.users["8093965618"]) {
+    stateObj.users["8093965618"] = {
+      phone: "8093965618",
+      password: "la fama",
+      balance: 1000,
+      registeredAt: "2026-06-10T12:00:00Z",
+      vips: [1, 2],
+      totalRecharged: 1100,
+      totalWithdrawn: 0,
+      registrationBonusClaimed: true,
+      status: 'active'
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj));
+    upsertUserToSupabase(stateObj.users["8093965618"]);
   }
+
+  return stateObj;
 }
 
 // State save helper
