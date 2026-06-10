@@ -19,6 +19,7 @@ export interface User {
   totalWithdrawn: number;
   registrationBonusClaimed: boolean;
   status: 'active' | 'suspended';
+  isStub?: boolean; // temporary referral-placeholder account
 }
 
 export interface RechargeRequest {

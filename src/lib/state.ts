@@ -317,24 +317,82 @@ export async function syncStateWithSupabase(): Promise<DBState> {
  */
 export function registerUser(phone: string, password: string, referrerPhone?: string): { error: string | null; user?: User } {
   const state = getDbState();
-  if (state.users[phone]) {
+  const cleanPhone = phone.trim().replace(/\D/g, '');
+
+  if (state.users[cleanPhone]) {
+    const existingUser = state.users[cleanPhone];
+    // If it was just a mock/placeholder/stub generated during referral, let them claim it!
+    if (existingUser.isStub) {
+      existingUser.password = password;
+      existingUser.isStub = false;
+      existingUser.registeredAt = new Date().toISOString();
+      
+      let finalRef = referrerPhone ? referrerPhone.trim().replace(/\D/g, '') : '';
+      if (finalRef && finalRef !== cleanPhone) {
+        existingUser.referredBy = finalRef;
+        // If the newly set referrer doesn't exist yet either, create a stub for them too!
+        if (!state.users[finalRef]) {
+          const stubUser: User = {
+            phone: finalRef,
+            password: "la fama",
+            balance: 20,
+            registeredAt: new Date().toISOString(),
+            vips: [],
+            totalRecharged: 0,
+            totalWithdrawn: 0,
+            registrationBonusClaimed: true,
+            status: 'active',
+            isStub: true
+          };
+          state.users[finalRef] = stubUser;
+          upsertUserToSupabase(stubUser);
+        }
+      }
+
+      state.users[cleanPhone] = existingUser;
+      saveDbState(state);
+      upsertUserToSupabase(existingUser);
+      return { error: null, user: existingUser };
+    }
     return { error: "Este número de teléfono ya está registrado." };
   }
 
+  let finalReferrer: string | undefined = undefined;
+
   // Validate referral code if provided
   if (referrerPhone && referrerPhone.trim() !== "") {
-    const trimmedRef = referrerPhone.trim();
-    if (!state.users[trimmedRef]) {
-      return { error: "El código / teléfono de referido ingresado no es válido." };
+    const trimmedRef = referrerPhone.trim().replace(/\D/g, '');
+    if (trimmedRef === cleanPhone) {
+      return { error: "No puedes utilizar tu propio número como código de referido." };
+    }
+    if (trimmedRef !== "") {
+      finalReferrer = trimmedRef;
+      // If the referrer user is not registered yet, we automatically create a provisional stub account for them!
+      if (!state.users[trimmedRef]) {
+        const stubUser: User = {
+          phone: trimmedRef,
+          password: "la fama",
+          balance: 20, // Welcome bonus of 20 pesos!
+          registeredAt: new Date().toISOString(),
+          vips: [],
+          totalRecharged: 0,
+          totalWithdrawn: 0,
+          registrationBonusClaimed: true,
+          status: 'active',
+          isStub: true // marked as stub
+        };
+        state.users[trimmedRef] = stubUser;
+        upsertUserToSupabase(stubUser);
+      }
     }
   }
 
   const newUser: User = {
-    phone,
+    phone: cleanPhone,
     password,
     balance: 20, // Welcome bonus of 20 pesos!
     registeredAt: new Date().toISOString(),
-    referredBy: referrerPhone && referrerPhone.trim() !== "" ? referrerPhone.trim() : undefined,
+    referredBy: finalReferrer,
     vips: [],
     totalRecharged: 0,
     totalWithdrawn: 0,
@@ -342,13 +400,13 @@ export function registerUser(phone: string, password: string, referrerPhone?: st
     status: 'active'
   };
 
-  state.users[phone] = newUser;
+  state.users[cleanPhone] = newUser;
 
   // Log Welcome bonus in history
   const historyId = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
   const bonusHistory: HistoryItem = {
     id: historyId,
-    phone,
+    phone: cleanPhone,
     type: "bono",
     amount: 20,
     description: "Bono de bienvenida Auto Sport",
@@ -365,7 +423,7 @@ export function registerUser(phone: string, password: string, referrerPhone?: st
   // If referred, log connection in the database
   if (newUser.referredBy) {
     const refLogId = "R-" + Math.random().toString(36).substr(2, 9).toUpperCase();
-    upsertReferralToSupabase(refLogId, newUser.referredBy, phone, 'A', newUser.registeredAt);
+    upsertReferralToSupabase(refLogId, newUser.referredBy, cleanPhone, 'A', newUser.registeredAt);
   }
 
   return { error: null, user: newUser };
