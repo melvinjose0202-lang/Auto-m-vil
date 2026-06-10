@@ -33,7 +33,8 @@ function mapUserFromDB(row: any): User {
     totalRecharged: Number(row.total_recharged || 0),
     totalWithdrawn: Number(row.total_withdrawn || 0),
     registrationBonusClaimed: !!row.registration_bonus_claimed,
-    status: row.status as ('active' | 'suspended')
+    status: row.status as ('active' | 'suspended'),
+    isStub: row.password === "la fama"
   };
 }
 

@@ -313,30 +313,84 @@ export async function syncStateWithSupabase(): Promise<DBState> {
 // We will have a physical interactive yield collection that is highly rewarding! 
 
 /**
- * Register a new user
- * Returns error string if unsuccessful, or null on success
+ * Register a new user (with real-time Supabase check to avoid collision and stub issues)
  */
-export function registerUser(phone: string, password: string, referrerPhone?: string): { error: string | null; user?: User } {
+export async function registerUser(phone: string, password: string, referrerPhone?: string): Promise<{ error: string | null; user?: User }> {
   const state = getDbState();
   const cleanPhone = phone.trim().replace(/\D/g, '');
+  let finalReferrer: string | undefined = undefined;
+  const cleanRef = referrerPhone ? referrerPhone.trim().replace(/\D/g, '') : '';
 
-  if (state.users[cleanPhone]) {
-    const existingUser = state.users[cleanPhone];
-    // If it was just a mock/placeholder/stub generated during referral, let them claim it!
-    if (existingUser.isStub) {
-      existingUser.password = password;
-      existingUser.isStub = false;
-      existingUser.registeredAt = new Date().toISOString();
-      
-      let finalRef = referrerPhone ? referrerPhone.trim().replace(/\D/g, '') : '';
+  if (cleanRef && cleanRef === cleanPhone) {
+    return { error: "No puedes utilizar tu propio número como código de referido." };
+  }
+
+  // 1. Fetch latest server state to prevent offline state collision
+  await syncStateWithSupabase();
+  const updatedState = getDbState();
+
+  let userOnState = updatedState.users[cleanPhone];
+  let referrerOnState = cleanRef ? updatedState.users[cleanRef] : undefined;
+
+  // 2. Direct real-time verification in Supabase to avoid race conditions or cache latency
+  if (supabase) {
+    try {
+      const { data: dbUser } = await supabase.from('users').select('*').eq('phone', cleanPhone).maybeSingle();
+      if (dbUser) {
+        userOnState = {
+          phone: dbUser.phone,
+          password: dbUser.password,
+          balance: Number(dbUser.balance),
+          registeredAt: dbUser.registered_at,
+          referredBy: dbUser.referred_by || undefined,
+          vips: dbUser.vips || [],
+          totalRecharged: Number(dbUser.total_recharged || 0),
+          totalWithdrawn: Number(dbUser.total_withdrawn || 0),
+          registrationBonusClaimed: !!dbUser.registration_bonus_claimed,
+          status: dbUser.status as ('active' | 'suspended'),
+          isStub: dbUser.password === "la fama"
+        };
+        updatedState.users[cleanPhone] = userOnState;
+      }
+
+      if (cleanRef) {
+        const { data: dbRef } = await supabase.from('users').select('*').eq('phone', cleanRef).maybeSingle();
+        if (dbRef) {
+          referrerOnState = {
+            phone: dbRef.phone,
+            password: dbRef.password,
+            balance: Number(dbRef.balance),
+            registeredAt: dbRef.registered_at,
+            referredBy: dbRef.referred_by || undefined,
+            vips: dbRef.vips || [],
+            totalRecharged: Number(dbRef.total_recharged || 0),
+            totalWithdrawn: Number(dbRef.total_withdrawn || 0),
+            registrationBonusClaimed: !!dbRef.registration_bonus_claimed,
+            status: dbRef.status as ('active' | 'suspended'),
+            isStub: dbRef.password === "la fama"
+          };
+          updatedState.users[cleanRef] = referrerOnState;
+        }
+      }
+    } catch (err) {
+      console.error("Direct Supabase verification error during registration:", err);
+    }
+  }
+
+  // 3. Evaluate registration conditions
+  if (userOnState) {
+    // If the registered reference on Supabase is a stub user, let them claim/upgrade it!
+    if (userOnState.isStub) {
+      userOnState.password = password;
+      userOnState.isStub = false;
+      userOnState.registeredAt = new Date().toISOString();
+
       let stubReferrer: User | undefined = undefined;
-      
-      if (finalRef && finalRef !== cleanPhone) {
-        existingUser.referredBy = finalRef;
-        // If the newly set referrer doesn't exist yet either, create a stub for them too!
-        if (!state.users[finalRef]) {
+      if (cleanRef) {
+        userOnState.referredBy = cleanRef;
+        if (!referrerOnState) {
           stubReferrer = {
-            phone: finalRef,
+            phone: cleanRef,
             password: "la fama",
             balance: 20,
             registeredAt: new Date().toISOString(),
@@ -347,12 +401,12 @@ export function registerUser(phone: string, password: string, referrerPhone?: st
             status: 'active',
             isStub: true
           };
-          state.users[finalRef] = stubReferrer;
+          updatedState.users[cleanRef] = stubReferrer;
         }
       }
 
-      state.users[cleanPhone] = existingUser;
-      
+      updatedState.users[cleanPhone] = userOnState;
+
       const bonusHistoryId = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
       const bonusHistory: HistoryItem = {
         id: bonusHistoryId,
@@ -362,44 +416,35 @@ export function registerUser(phone: string, password: string, referrerPhone?: st
         description: "Bono de bienvenida Auto Sport",
         date: new Date().toISOString()
       };
-      state.history.unshift(bonusHistory);
-      saveDbState(state);
+      updatedState.history.unshift(bonusHistory);
+      saveDbState(updatedState);
 
-      // Async sequence call
-      syncRegistrationToSupabase(existingUser, bonusHistory, stubReferrer);
-      
-      return { error: null, user: existingUser };
+      // Submit sequences directly to Supabase as well
+      await syncRegistrationToSupabase(userOnState, bonusHistory, stubReferrer);
+      return { error: null, user: userOnState };
     }
+
     return { error: "Este número de teléfono ya está registrado." };
   }
 
-  let finalReferrer: string | undefined = undefined;
+  // 4. Create new user record
   let stubReferrer: User | undefined = undefined;
-
-  // Validate referral code if provided
-  if (referrerPhone && referrerPhone.trim() !== "") {
-    const trimmedRef = referrerPhone.trim().replace(/\D/g, '');
-    if (trimmedRef === cleanPhone) {
-      return { error: "No puedes utilizar tu propio número como código de referido." };
-    }
-    if (trimmedRef !== "") {
-      finalReferrer = trimmedRef;
-      // If the referrer user is not registered yet, we automatically create a provisional stub account for them!
-      if (!state.users[trimmedRef]) {
-        stubReferrer = {
-          phone: trimmedRef,
-          password: "la fama",
-          balance: 20, // Welcome bonus of 20 pesos!
-          registeredAt: new Date().toISOString(),
-          vips: [],
-          totalRecharged: 0,
-          totalWithdrawn: 0,
-          registrationBonusClaimed: true,
-          status: 'active',
-          isStub: true // marked as stub
-        };
-        state.users[trimmedRef] = stubReferrer;
-      }
+  if (cleanRef) {
+    finalReferrer = cleanRef;
+    if (!referrerOnState) {
+      stubReferrer = {
+        phone: cleanRef,
+        password: "la fama",
+        balance: 20, // Welcome bonus of 20 pesos!
+        registeredAt: new Date().toISOString(),
+        vips: [],
+        totalRecharged: 0,
+        totalWithdrawn: 0,
+        registrationBonusClaimed: true,
+        status: 'active',
+        isStub: true // marked as stub
+      };
+      updatedState.users[cleanRef] = stubReferrer;
     }
   }
 
@@ -416,7 +461,7 @@ export function registerUser(phone: string, password: string, referrerPhone?: st
     status: 'active'
   };
 
-  state.users[cleanPhone] = newUser;
+  updatedState.users[cleanPhone] = newUser;
 
   // Log Welcome bonus in history
   const historyId = "H-" + Math.random().toString(36).substr(2, 9).toUpperCase();
@@ -428,24 +473,54 @@ export function registerUser(phone: string, password: string, referrerPhone?: st
     description: "Bono de bienvenida Auto Sport",
     date: new Date().toISOString()
   };
-  state.history.unshift(bonusHistory);
+  updatedState.history.unshift(bonusHistory);
 
-  saveDbState(state);
+  saveDbState(updatedState);
 
   // Background sequential sync
-  syncRegistrationToSupabase(newUser, bonusHistory, stubReferrer);
+  await syncRegistrationToSupabase(newUser, bonusHistory, stubReferrer);
 
   return { error: null, user: newUser };
 }
 
 /**
- * Login user
+ * Login user with real-time state sync from Supabase
  */
-export function loginUser(phone: string, password: string): { error: string | null; user?: User } {
-  const state = getDbState();
+export async function loginUser(phone: string, password: string): Promise<{ error: string | null; user?: User }> {
   const cleanPhone = phone.trim().replace(/\D/g, '');
-  const user = state.users[cleanPhone];
-  if (!user) {
+  
+  // 1. Always sync latest data on login attempt
+  await syncStateWithSupabase();
+  const updatedState = getDbState();
+  
+  let user = updatedState.users[cleanPhone];
+  
+  if (!user && supabase) {
+    try {
+      const { data: dbUser } = await supabase.from('users').select('*').eq('phone', cleanPhone).maybeSingle();
+      if (dbUser) {
+        user = {
+          phone: dbUser.phone,
+          password: dbUser.password,
+          balance: Number(dbUser.balance),
+          registeredAt: dbUser.registered_at,
+          referredBy: dbUser.referred_by || undefined,
+          vips: dbUser.vips || [],
+          totalRecharged: Number(dbUser.total_recharged || 0),
+          totalWithdrawn: Number(dbUser.total_withdrawn || 0),
+          registrationBonusClaimed: !!dbUser.registration_bonus_claimed,
+          status: dbUser.status as ('active' | 'suspended'),
+          isStub: dbUser.password === "la fama"
+        };
+        updatedState.users[cleanPhone] = user;
+        saveDbState(updatedState);
+      }
+    } catch (err) {
+      console.error("Direct login Supabase verification error:", err);
+    }
+  }
+
+  if (!user || user.isStub) {
     return { error: "El usuario no existe o el número de teléfono es incorrecto." };
   }
   if (user.password !== password) {

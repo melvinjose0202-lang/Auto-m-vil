@@ -18,6 +18,7 @@ export default function LoginRegister({ onAuthSuccess }: LoginRegisterProps) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Automatically fetch referral code from URL if present and persist/retrieve using localStorage for universal cross-device compliance
   React.useEffect(() => {
@@ -78,8 +79,9 @@ export default function LoginRegister({ onAuthSuccess }: LoginRegisterProps) {
 
   const strength = getPasswordStrength(password);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setError(null);
     setSuccess(null);
 
@@ -94,61 +96,70 @@ export default function LoginRegister({ onAuthSuccess }: LoginRegisterProps) {
       return;
     }
 
-    if (isRegister) {
-      if (password !== confirmPassword) {
-        setError("Las contraseñas no coinciden. Inténtalo de nuevo.");
-        return;
-      }
+    setIsLoading(true);
 
-      let finalRefCode = refCode.trim();
-      if (!finalRefCode && typeof window !== 'undefined') {
-        const storedRef = localStorage.getItem('autosport_pending_ref_code');
-        if (storedRef) {
-          finalRefCode = storedRef.trim();
+    try {
+      if (isRegister) {
+        if (password !== confirmPassword) {
+          setError("Las contraseñas no coinciden. Inténtalo de nuevo.");
+          setIsLoading(false);
+          return;
+        }
+
+        let finalRefCode = refCode.trim();
+        if (!finalRefCode && typeof window !== 'undefined') {
+          const storedRef = localStorage.getItem('autosport_pending_ref_code');
+          if (storedRef) {
+            finalRefCode = storedRef.trim();
+          }
+        }
+
+        const res = await registerUser(phone.trim(), password, finalRefCode);
+        if (res.error) {
+          setError(res.error);
+        } else if (res.user) {
+          setSuccess("¡Usuario creado exitosamente! Bono de RD$20 acreditado.");
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('autosport_pending_ref_code');
+          }
+          setTimeout(() => {
+            onAuthSuccess(res.user!, false);
+          }, 1500);
+        }
+      } else {
+        // Check admin credentials first
+        if (phone.trim() === "8097617087" && password === "lafama0213") {
+          setSuccess("Accediendo al Panel de Administración...");
+          const adminUser: User = {
+            phone: "8097617087",
+            balance: 999999,
+            registeredAt: new Date().toISOString(),
+            vips: [1,2,3,4,5,6],
+            totalRecharged: 999999,
+            totalWithdrawn: 0,
+            registrationBonusClaimed: true,
+            status: 'active'
+          };
+          setTimeout(() => {
+            onAuthSuccess(adminUser, true);
+          }, 1000);
+          return;
+        }
+
+        const res = await loginUser(phone.trim(), password);
+        if (res.error) {
+          setError(res.error);
+        } else if (res.user) {
+          setSuccess("Iniciando sesión...");
+          setTimeout(() => {
+            onAuthSuccess(res.user!, false);
+          }, 1000);
         }
       }
-
-      const res = registerUser(phone.trim(), password, finalRefCode);
-      if (res.error) {
-        setError(res.error);
-      } else if (res.user) {
-        setSuccess("¡Usuario creado exitosamente! Bono de RD$20 acreditado.");
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('autosport_pending_ref_code');
-        }
-        setTimeout(() => {
-          onAuthSuccess(res.user!, false);
-        }, 1500);
-      }
-    } else {
-      // Check admin credentials first
-      if (phone.trim() === "8097617087" && password === "lafama0213") {
-        setSuccess("Accediendo al Panel de Administración...");
-        const adminUser: User = {
-          phone: "8097617087",
-          balance: 999999,
-          registeredAt: new Date().toISOString(),
-          vips: [1,2,3,4,5,6],
-          totalRecharged: 999999,
-          totalWithdrawn: 0,
-          registrationBonusClaimed: true,
-          status: 'active'
-        };
-        setTimeout(() => {
-          onAuthSuccess(adminUser, true);
-        }, 1000);
-        return;
-      }
-
-      const res = loginUser(phone.trim(), password);
-      if (res.error) {
-        setError(res.error);
-      } else if (res.user) {
-        setSuccess("Iniciando sesión...");
-        setTimeout(() => {
-          onAuthSuccess(res.user!, false);
-        }, 1000);
-      }
+    } catch (err: any) {
+      setError("Ocurrió un error al procesar la solicitud. Por favor intenta de nuevo.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -340,9 +351,20 @@ export default function LoginRegister({ onAuthSuccess }: LoginRegisterProps) {
               <button
                 type="submit"
                 id="btn-submit-auth"
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold uppercase tracking-wider text-white bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 cursor-pointer shadow-lg shadow-orange-100 transition-all active:scale-[0.98]"
+                disabled={isLoading}
+                className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold uppercase tracking-wider text-white bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 cursor-pointer shadow-lg shadow-orange-100 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isRegister ? "Crear Cuenta de Alta Gama" : "Acceder al Garaje Sport"}
+                {isLoading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <span>Verificando Datos...</span>
+                  </>
+                ) : (
+                  <span>{isRegister ? "Crear Cuenta de Alta Gama" : "Acceder al Garaje Sport"}</span>
+                )}
               </button>
             </div>
           </form>
