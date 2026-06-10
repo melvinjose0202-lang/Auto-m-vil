@@ -8,8 +8,11 @@ import {
   upsertHistoryToSupabase,
   upsertReferralToSupabase,
   syncRegistrationToSupabase,
-  supabase
+  supabase,
+  normalizePhoneTo10Digits
 } from './supabase';
+
+export { normalizePhoneTo10Digits };
 
 
 export const VIP_LEVELS: VIPConfig[] = [
@@ -317,9 +320,9 @@ export async function syncStateWithSupabase(): Promise<DBState> {
  */
 export async function registerUser(phone: string, password: string, referrerPhone?: string): Promise<{ error: string | null; user?: User }> {
   const state = getDbState();
-  const cleanPhone = phone.trim().replace(/\D/g, '');
+  const cleanPhone = normalizePhoneTo10Digits(phone);
   let finalReferrer: string | undefined = undefined;
-  const cleanRef = referrerPhone ? referrerPhone.trim().replace(/\D/g, '') : '';
+  const cleanRef = normalizePhoneTo10Digits(referrerPhone);
 
   if (cleanRef && cleanRef === cleanPhone) {
     return { error: "No puedes utilizar tu propio número como código de referido." };
@@ -338,11 +341,11 @@ export async function registerUser(phone: string, password: string, referrerPhon
       const { data: dbUser } = await supabase.from('users').select('*').eq('phone', cleanPhone).maybeSingle();
       if (dbUser) {
         userOnState = {
-          phone: dbUser.phone,
+          phone: normalizePhoneTo10Digits(dbUser.phone),
           password: dbUser.password,
           balance: Number(dbUser.balance),
           registeredAt: dbUser.registered_at,
-          referredBy: dbUser.referred_by || undefined,
+          referredBy: dbUser.referred_by ? normalizePhoneTo10Digits(dbUser.referred_by) : undefined,
           vips: dbUser.vips || [],
           totalRecharged: Number(dbUser.total_recharged || 0),
           totalWithdrawn: Number(dbUser.total_withdrawn || 0),
@@ -357,11 +360,11 @@ export async function registerUser(phone: string, password: string, referrerPhon
         const { data: dbRef } = await supabase.from('users').select('*').eq('phone', cleanRef).maybeSingle();
         if (dbRef) {
           referrerOnState = {
-            phone: dbRef.phone,
+            phone: normalizePhoneTo10Digits(dbRef.phone),
             password: dbRef.password,
             balance: Number(dbRef.balance),
             registeredAt: dbRef.registered_at,
-            referredBy: dbRef.referred_by || undefined,
+            referredBy: dbRef.referred_by ? normalizePhoneTo10Digits(dbRef.referred_by) : undefined,
             vips: dbRef.vips || [],
             totalRecharged: Number(dbRef.total_recharged || 0),
             totalWithdrawn: Number(dbRef.total_withdrawn || 0),
@@ -487,7 +490,7 @@ export async function registerUser(phone: string, password: string, referrerPhon
  * Login user with real-time state sync from Supabase
  */
 export async function loginUser(phone: string, password: string): Promise<{ error: string | null; user?: User }> {
-  const cleanPhone = phone.trim().replace(/\D/g, '');
+  const cleanPhone = normalizePhoneTo10Digits(phone);
   
   // 1. Always sync latest data on login attempt
   await syncStateWithSupabase();
@@ -500,11 +503,11 @@ export async function loginUser(phone: string, password: string): Promise<{ erro
       const { data: dbUser } = await supabase.from('users').select('*').eq('phone', cleanPhone).maybeSingle();
       if (dbUser) {
         user = {
-          phone: dbUser.phone,
+          phone: normalizePhoneTo10Digits(dbUser.phone),
           password: dbUser.password,
           balance: Number(dbUser.balance),
           registeredAt: dbUser.registered_at,
-          referredBy: dbUser.referred_by || undefined,
+          referredBy: dbUser.referred_by ? normalizePhoneTo10Digits(dbUser.referred_by) : undefined,
           vips: dbUser.vips || [],
           totalRecharged: Number(dbUser.total_recharged || 0),
           totalWithdrawn: Number(dbUser.total_withdrawn || 0),
@@ -852,7 +855,7 @@ export function approveRechargeRequest(requestId: string): { error: string | nul
 
   // Calculate and distribute multi-level referral commissions
   // Ensure no duplicate commissions can trigger on double click by verifying recharge status is handled.
-  let currentReferrerPhone = user.referredBy;
+  let currentReferrerPhone = user.referredBy ? normalizePhoneTo10Digits(user.referredBy) : undefined;
 
   // LEVEL A (10%)
   if (currentReferrerPhone && state.users[currentReferrerPhone]) {
@@ -876,7 +879,7 @@ export function approveRechargeRequest(requestId: string): { error: string | nul
     historyToSync.push(commAHistory);
 
     // Move to LEVEL B
-    currentReferrerPhone = refUserA.referredBy;
+    currentReferrerPhone = refUserA.referredBy ? normalizePhoneTo10Digits(refUserA.referredBy) : undefined;
     if (currentReferrerPhone && state.users[currentReferrerPhone]) {
       const commissionB = recharge.amount * 0.02;
       const refUserB = state.users[currentReferrerPhone];
@@ -897,7 +900,7 @@ export function approveRechargeRequest(requestId: string): { error: string | nul
       historyToSync.push(commBHistory);
 
       // Move to LEVEL C
-      currentReferrerPhone = refUserB.referredBy;
+      currentReferrerPhone = refUserB.referredBy ? normalizePhoneTo10Digits(refUserB.referredBy) : undefined;
       if (currentReferrerPhone && state.users[currentReferrerPhone]) {
         const commissionC = recharge.amount * 0.01;
         const refUserC = state.users[currentReferrerPhone];
@@ -1052,7 +1055,7 @@ export function getReferralNetworkDetails(phone: string): {
   levelC: ReferredDetails[];
   totalEarnings: number;
 } {
-  const cleanPhone = phone.trim().replace(/\D/g, '');
+  const cleanPhone = normalizePhoneTo10Digits(phone);
   const state = getDbState();
   const users = Object.values(state.users);
 
@@ -1060,11 +1063,11 @@ export function getReferralNetworkDetails(phone: string): {
   const levelA = users
     .filter(u => {
       if (!u.referredBy) return false;
-      const refClean = u.referredBy.trim().replace(/\D/g, '');
+      const refClean = normalizePhoneTo10Digits(u.referredBy);
       return refClean === cleanPhone;
     })
     .map(u => ({
-      phone: u.phone.trim().replace(/\D/g, ''),
+      phone: normalizePhoneTo10Digits(u.phone),
       registeredAt: u.registeredAt,
       totalRecharged: u.totalRecharged
     }));
@@ -1074,11 +1077,11 @@ export function getReferralNetworkDetails(phone: string): {
   const levelB = users
     .filter(u => {
       if (!u.referredBy) return false;
-      const refClean = u.referredBy.trim().replace(/\D/g, '');
+      const refClean = normalizePhoneTo10Digits(u.referredBy);
       return levelAPhones.includes(refClean);
     })
     .map(u => ({
-      phone: u.phone.trim().replace(/\D/g, ''),
+      phone: normalizePhoneTo10Digits(u.phone),
       registeredAt: u.registeredAt,
       totalRecharged: u.totalRecharged
     }));
@@ -1088,11 +1091,11 @@ export function getReferralNetworkDetails(phone: string): {
   const levelC = users
     .filter(u => {
       if (!u.referredBy) return false;
-      const refClean = u.referredBy.trim().replace(/\D/g, '');
+      const refClean = normalizePhoneTo10Digits(u.referredBy);
       return levelBPhones.includes(refClean);
     })
     .map(u => ({
-      phone: u.phone.trim().replace(/\D/g, ''),
+      phone: normalizePhoneTo10Digits(u.phone),
       registeredAt: u.registeredAt,
       totalRecharged: u.totalRecharged
     }));
@@ -1100,7 +1103,7 @@ export function getReferralNetworkDetails(phone: string): {
   // Calculate total commission earned from history for this user using cleaned phone
   const totalEarnings = state.history
     .filter(h => {
-      const histPhoneClean = h.phone.trim().replace(/\D/g, '');
+      const histPhoneClean = normalizePhoneTo10Digits(h.phone);
       return histPhoneClean === cleanPhone && h.type === 'comision';
     })
     .reduce((acc, current) => acc + current.amount, 0);

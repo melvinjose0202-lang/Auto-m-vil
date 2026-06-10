@@ -2,8 +2,13 @@ import { createClient } from '@supabase/supabase-js';
 import { User, RechargeRequest, WithdrawRequest, HistoryItem } from '../types';
 
 const metaEnv = (import.meta as any).env || {};
-const supabaseUrl = (metaEnv.VITE_SUPABASE_URL || "").trim();
+let supabaseUrl = (metaEnv.VITE_SUPABASE_URL || "").trim();
 const supabaseAnonKey = (metaEnv.VITE_SUPABASE_ANON_KEY || "").trim();
+
+// Auto-clean URL to make sure it is just the root domain, even if user inputs rest/v1 or trailing slashes
+if (supabaseUrl) {
+  supabaseUrl = supabaseUrl.replace(/\/rest\/v1\/?$/, "").replace(/\/$/, "");
+}
 
 const isValidHttpUrl = (url: string) => {
   if (!url) return false;
@@ -21,14 +26,24 @@ if (supabaseUrl && supabaseAnonKey && isValidHttpUrl(supabaseUrl)) {
 
 export const supabase = supabaseClient;
 
+/**
+ * Universal 10-digit phone number normalizer for Dominican Republic / US format.
+ * Strips formatting + ensures we match the last 10 digits to bypass any country code mismatches.
+ */
+export function normalizePhoneTo10Digits(phone: string | null | undefined): string {
+  if (!phone) return '';
+  const digits = phone.trim().replace(/\D/g, '');
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
 // Helper to convert snake_case (Supabase) to camelCase (React/types) for users
 function mapUserFromDB(row: any): User {
   return {
-    phone: row.phone,
+    phone: normalizePhoneTo10Digits(row.phone),
     password: row.password,
     balance: Number(row.balance),
     registeredAt: row.registered_at,
-    referredBy: row.referred_by || undefined,
+    referredBy: row.referred_by ? normalizePhoneTo10Digits(row.referred_by) : undefined,
     vips: row.vips || [],
     totalRecharged: Number(row.total_recharged || 0),
     totalWithdrawn: Number(row.total_withdrawn || 0),
@@ -40,11 +55,11 @@ function mapUserFromDB(row: any): User {
 
 function mapUserToDB(user: User) {
   return {
-    phone: user.phone,
+    phone: normalizePhoneTo10Digits(user.phone),
     password: user.password,
     balance: user.balance,
     registered_at: user.registeredAt,
-    referred_by: user.referredBy || null,
+    referred_by: user.referredBy ? normalizePhoneTo10Digits(user.referredBy) : null,
     vips: user.vips,
     total_recharged: user.totalRecharged,
     total_withdrawn: user.totalWithdrawn,
@@ -57,7 +72,7 @@ function mapUserToDB(user: User) {
 function mapRechargeFromDB(row: any): RechargeRequest {
   return {
     id: row.id,
-    phone: row.phone,
+    phone: normalizePhoneTo10Digits(row.phone),
     amount: Number(row.amount),
     paymentMethod: row.payment_method,
     reference: row.reference,
@@ -71,7 +86,7 @@ function mapRechargeFromDB(row: any): RechargeRequest {
 function mapRechargeToDB(req: RechargeRequest) {
   return {
     id: req.id,
-    phone: req.phone,
+    phone: normalizePhoneTo15Phone(req.phone),
     amount: req.amount,
     payment_method: req.paymentMethod,
     reference: req.reference,
@@ -82,11 +97,21 @@ function mapRechargeToDB(req: RechargeRequest) {
   };
 }
 
+// Separate helper specifically if database key checks exist or for normal writes
+function normalizeToDBPhone(phone: string): string {
+  return normalizePhoneTo10Digits(phone);
+}
+
+// Keep it clean
+function normalizePhoneTo15Phone(phone: string): string {
+  return normalizePhoneTo10Digits(phone);
+}
+
 // Helper for withdrawals mapping
 function mapWithdrawalFromDB(row: any): WithdrawRequest {
   return {
     id: row.id,
-    phone: row.phone,
+    phone: normalizePhoneTo10Digits(row.phone),
     amount: Number(row.amount),
     netAmount: Number(row.net_amount),
     commission: Number(row.commission),
@@ -98,7 +123,7 @@ function mapWithdrawalFromDB(row: any): WithdrawRequest {
 function mapWithdrawalToDB(req: WithdrawRequest) {
   return {
     id: req.id,
-    phone: req.phone,
+    phone: normalizePhoneTo10Digits(req.phone),
     amount: req.amount,
     net_amount: req.netAmount,
     commission: req.commission,
@@ -111,7 +136,7 @@ function mapWithdrawalToDB(req: WithdrawRequest) {
 function mapHistoryFromDB(row: any): HistoryItem {
   return {
     id: row.id,
-    phone: row.phone,
+    phone: normalizePhoneTo10Digits(row.phone),
     type: row.type as ('recarga' | 'retiro' | 'comision' | 'rendimiento' | 'bono'),
     amount: Number(row.amount),
     description: row.description,
@@ -122,7 +147,7 @@ function mapHistoryFromDB(row: any): HistoryItem {
 function mapHistoryToDB(item: HistoryItem) {
   return {
     id: item.id,
-    phone: item.phone,
+    phone: normalizePhoneTo10Digits(item.phone),
     type: item.type,
     amount: item.amount,
     description: item.description,
@@ -190,34 +215,98 @@ export async function fetchFullStateFromSupabase(): Promise<{
 } | null> {
   if (!supabase) return null;
 
+  // Retrieve current local storage state as an initial fallback
+  let localUsers: Record<string, User> = {};
+  let localRecharges: RechargeRequest[] = [];
+  let localWithdrawals: WithdrawRequest[] = [];
+  let localHistory: HistoryItem[] = [];
+
   try {
-    const [usersRes, rechargesRes, withdrawalsRes, historyRes] = await Promise.all([
-      supabase.from('users').select('*'),
-      supabase.from('recharges').select('*').order('date', { ascending: false }),
-      supabase.from('withdrawals').select('*').order('date', { ascending: false }),
-      supabase.from('history').select('*').order('date', { ascending: false })
-    ]);
+    const raw = typeof window !== 'undefined' ? localStorage.getItem("autosport_state_db") : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.users) localUsers = parsed.users;
+      if (parsed.recharges) localRecharges = parsed.recharges;
+      if (parsed.withdrawals) localWithdrawals = parsed.withdrawals;
+      if (parsed.history) localHistory = parsed.history;
+    }
+  } catch (e) {
+    console.warn("Could not read local backup state for fallback sync:", e);
+  }
 
-    if (usersRes.error) throw new Error("Users fetch: " + usersRes.error.message);
-    if (rechargesRes.error) throw new Error("Recharges fetch: " + rechargesRes.error.message);
-    if (withdrawalsRes.error) throw new Error("Withdrawals fetch: " + withdrawalsRes.error.message);
-    if (historyRes.error) throw new Error("History fetch: " + historyRes.error.message);
+  const usersMap: Record<string, User> = { ...localUsers };
+  let recharges = [...localRecharges];
+  let withdrawals = [...localWithdrawals];
+  let history = [...localHistory];
 
-    const usersMap: Record<string, User> = {};
-    (usersRes.data || []).forEach(row => {
-      usersMap[row.phone] = mapUserFromDB(row);
-    });
+  let workedAtLeastOne = false;
 
+  // 1. Fetch Users
+  try {
+    const { data, error } = await supabase.from('users').select('*');
+    if (error) {
+      console.error("Users table fetch failed:", error.message);
+    } else if (data) {
+      workedAtLeastOne = true;
+      // Overwrite or update with latest database records
+      data.forEach(row => {
+        const normalizedKey = normalizePhoneTo10Digits(row.phone);
+        usersMap[normalizedKey] = mapUserFromDB(row);
+      });
+    }
+  } catch (e) {
+    console.error("Users fetch exception:", e);
+  }
+
+  // 2. Fetch Recharges
+  try {
+    const { data, error } = await supabase.from('recharges').select('*').order('date', { ascending: false });
+    if (error) {
+      console.error("Recharges table fetch failed:", error.message);
+    } else if (data) {
+      workedAtLeastOne = true;
+      recharges = data.map(mapRechargeFromDB);
+    }
+  } catch (e) {
+    console.error("Recharges fetch exception:", e);
+  }
+
+  // 3. Fetch Withdrawals
+  try {
+    const { data, error } = await supabase.from('withdrawals').select('*').order('date', { ascending: false });
+    if (error) {
+      console.error("Withdrawals table fetch failed:", error.message);
+    } else if (data) {
+      workedAtLeastOne = true;
+      withdrawals = data.map(mapWithdrawalFromDB);
+    }
+  } catch (e) {
+    console.error("Withdrawals fetch exception:", e);
+  }
+
+  // 4. Fetch History
+  try {
+    const { data, error } = await supabase.from('history').select('*').order('date', { ascending: false });
+    if (error) {
+      console.error("History table fetch failed:", error.message);
+    } else if (data) {
+      workedAtLeastOne = true;
+      history = data.map(mapHistoryFromDB);
+    }
+  } catch (e) {
+    console.error("History fetch exception:", e);
+  }
+
+  if (workedAtLeastOne) {
     return {
       users: usersMap,
-      recharges: (rechargesRes.data || []).map(mapRechargeFromDB),
-      withdrawals: (withdrawalsRes.data || []).map(mapWithdrawalFromDB),
-      history: (historyRes.data || []).map(mapHistoryFromDB)
+      recharges,
+      withdrawals,
+      history
     };
-  } catch (err) {
-    console.error("fetchFullStateFromSupabase error:", err);
-    return null;
   }
+
+  return null;
 }
 
 /**
@@ -331,8 +420,8 @@ export async function syncRegistrationToSupabase(newUser: User, bonusHistory: Hi
       const refLogId = "R-" + Math.random().toString(36).substr(2, 9).toUpperCase();
       const { error: refErr } = await supabase.from('referrals').upsert({
         id: refLogId,
-        referrer_phone: newUser.referredBy.trim().replace(/\D/g, ''),
-        referred_phone: newUser.phone.trim().replace(/\D/g, ''),
+        referrer_phone: normalizePhoneTo10Digits(newUser.referredBy),
+        referred_phone: normalizePhoneTo10Digits(newUser.phone),
         level: 'A',
         date: newUser.registeredAt
       });

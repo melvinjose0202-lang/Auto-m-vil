@@ -124,7 +124,7 @@ export default function App() {
           )}
 
           {activeTab === 2 && (
-            <Team user={currentUser} />
+            <Team user={currentUser} onUpdateUser={handleUpdateUser} />
           )}
 
           {activeTab === 3 && (

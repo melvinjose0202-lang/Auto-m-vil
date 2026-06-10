@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, Check, Users, ShieldAlert, Award, ChevronDown, ChevronUp, Link, Sparkles, RefreshCw } from 'lucide-react';
 import { User } from '../types';
-import { getReferralNetworkDetails, ReferredDetails, syncStateWithSupabase } from '../lib/state';
+import { getReferralNetworkDetails, ReferredDetails, syncStateWithSupabase, getDbState, normalizePhoneTo10Digits } from '../lib/state';
 
 interface TeamProps {
   user: User;
+  onUpdateUser?: (updated: User) => void;
 }
 
-export default function Team({ user }: TeamProps) {
+export default function Team({ user, onUpdateUser }: TeamProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -31,6 +32,21 @@ export default function Team({ user }: TeamProps) {
       await syncStateWithSupabase();
       const details = getReferralNetworkDetails(user.phone);
       setNetwork(details);
+
+      // Check if the current user's statistics or balances changed on the server (e.g. commissions approved)
+      const stateObj = getDbState();
+      const cleanPhone = normalizePhoneTo10Digits(user.phone);
+      const updatedUser = stateObj.users[cleanPhone];
+      if (updatedUser && onUpdateUser) {
+        if (
+          updatedUser.balance !== user.balance ||
+          updatedUser.totalRecharged !== user.totalRecharged ||
+          updatedUser.totalWithdrawn !== user.totalWithdrawn ||
+          JSON.stringify(updatedUser.vips) !== JSON.stringify(user.vips)
+        ) {
+          onUpdateUser(updatedUser);
+        }
+      }
     } catch (e) {
       console.error("Error refreshing referral network:", e);
     } finally {
