@@ -19,13 +19,38 @@ export default function LoginRegister({ onAuthSuccess }: LoginRegisterProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Automatically fetch referral code from URL if present
+  // Automatically fetch referral code from URL if present and persist/retrieve using localStorage for universal cross-device compliance
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const urlRef = params.get('ref');
-      if (urlRef) {
-        setRefCode(urlRef);
+      try {
+        // Broad search on url parameters
+        const params = new URLSearchParams(window.location.search);
+        let urlRef = params.get('ref');
+        
+        // Also support hash parameter if we are using an spa hashtag router
+        if (!urlRef && window.location.hash) {
+          const hashQuery = window.location.hash.split('?')[1];
+          if (hashQuery) {
+            const hashParams = new URLSearchParams(hashQuery);
+            urlRef = hashParams.get('ref');
+          }
+        }
+
+        if (urlRef) {
+          const cleaned = urlRef.trim().replace(/\D/g, ''); // Clean to numeric only
+          if (cleaned) {
+            setRefCode(cleaned);
+            localStorage.setItem('autosport_pending_ref_code', cleaned);
+          }
+        } else {
+          // Retrieve from localStorage if URL didn't have it (device/reloads persistence)
+          const storedRef = localStorage.getItem('autosport_pending_ref_code');
+          if (storedRef) {
+            setRefCode(storedRef);
+          }
+        }
+      } catch (e) {
+        console.error("Error reading/writing referral code:", e);
       }
     }
   }, []);
@@ -75,11 +100,22 @@ export default function LoginRegister({ onAuthSuccess }: LoginRegisterProps) {
         return;
       }
 
-      const res = registerUser(phone.trim(), password, refCode.trim());
+      let finalRefCode = refCode.trim();
+      if (!finalRefCode && typeof window !== 'undefined') {
+        const storedRef = localStorage.getItem('autosport_pending_ref_code');
+        if (storedRef) {
+          finalRefCode = storedRef.trim();
+        }
+      }
+
+      const res = registerUser(phone.trim(), password, finalRefCode);
       if (res.error) {
         setError(res.error);
       } else if (res.user) {
         setSuccess("¡Usuario creado exitosamente! Bono de RD$20 acreditado.");
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('autosport_pending_ref_code');
+        }
         setTimeout(() => {
           onAuthSuccess(res.user!, false);
         }, 1500);
