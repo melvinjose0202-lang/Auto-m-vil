@@ -3,7 +3,7 @@ import { User, RechargeRequest, WithdrawRequest, HistoryItem } from '../types';
 
 const metaEnv = (import.meta as any).env || {};
 let supabaseUrl = (metaEnv.VITE_SUPABASE_URL || "https://xvdiuujhzczanakyyrzb.supabase.co").trim();
-const supabaseAnonKey = (metaEnv.VITE_SUPABASE_ANON_KEY || "sb_publishable_t0MCM-PwNkbNW25x_ye7OA_m6jkhwbo").trim();
+const supabaseAnonKey = (metaEnv.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2ZGl1dWpoemN6YW5ha3l5cnpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNTI3NTIsImV4cCI6MjA5NjYyODc1Mn0.7LuKwnT-U7cvbYDGlUclN57w4GMfPYxNlDMd-26X0CM").trim();
 
 // Auto-clean URL to make sure it is just the root domain, even if user inputs rest/v1 or trailing slashes
 if (supabaseUrl) {
