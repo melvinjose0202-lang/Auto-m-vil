@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, Check, Users, ShieldAlert, Award, ChevronDown, ChevronUp, Link, Sparkles, RefreshCw } from 'lucide-react';
 import { User } from '../types';
-import { getReferralNetworkDetails, ReferredDetails, syncStateWithSupabase, getDbState, normalizePhoneTo10Digits } from '../lib/state';
+import { getReferralNetworkDetails, ReferredDetails, syncStateWithSupabase, getDbState, normalizePhoneTo10Digits, checkSupabaseConnection } from '../lib/state';
 
 interface TeamProps {
   user: User;
@@ -25,9 +25,30 @@ export default function Team({ user, onUpdateUser }: TeamProps) {
     totalEarnings: 0
   });
 
+  const [dbStatus, setDbStatus] = useState<{
+    isChecked: boolean;
+    connected: boolean;
+    hasTables: boolean;
+    error: string | null;
+  }>({
+    isChecked: false,
+    connected: false,
+    hasTables: false,
+    error: null
+  });
+
   const performSync = async (silent = false) => {
     if (!silent) setIsSyncing(true);
     try {
+      // Diagnostic check the live status
+      const status = await checkSupabaseConnection();
+      setDbStatus({
+        isChecked: true,
+        connected: status.connected,
+        hasTables: status.hasTables,
+        error: status.error
+      });
+
       // Sync from Supabase to fetch new users/referrals registered across and on other devices
       await syncStateWithSupabase();
       const details = getReferralNetworkDetails(user.phone);
@@ -100,6 +121,37 @@ export default function Team({ user, onUpdateUser }: TeamProps) {
           <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin text-orange-600' : ''}`} />
         </button>
       </div>
+
+      {/* Database Diagnostic Status Alert */}
+      {dbStatus.isChecked && (
+        <div className={`p-4 rounded-3xl flex items-start gap-3 border text-xs font-medium transition shadow-sm ${
+          dbStatus.connected && dbStatus.hasTables 
+            ? 'bg-emerald-50 border-emerald-200/60 text-emerald-800' 
+            : dbStatus.connected 
+              ? 'bg-amber-50 border-amber-200/60 text-amber-800 font-sans animate-pulse' 
+              : 'bg-rose-50 border-rose-200/60 text-rose-800 font-sans'
+        }`}>
+          <div className={`h-3 w-3 rounded-full mt-0.5 flex-shrink-0 ${
+            dbStatus.connected && dbStatus.hasTables ? 'bg-emerald-500 shadow-sm shadow-emerald-200' : dbStatus.connected ? 'bg-amber-500' : 'bg-rose-500'
+          }`} />
+          <div className="space-y-1 text-left flex-1 font-sans">
+            <span className="font-black uppercase tracking-wider block text-[10px]">
+              {dbStatus.connected && dbStatus.hasTables 
+                ? 'Base de Datos Sincronizada' 
+                : dbStatus.connected 
+                  ? 'Base de Datos en Espera (Esquema en Blanco)' 
+                  : 'Modo Offline Completo'}
+            </span>
+            <p className="text-[11px] leading-relaxed opacity-90 font-medium text-slate-600">
+              {dbStatus.connected && dbStatus.hasTables 
+                ? 'Conexión activa con el servidor Supabase. Tu equipo y sus registros se sincronizan en tiempo real.' 
+                : dbStatus.connected 
+                  ? 'Supabase está conectado pero falta inicializar el esquema. Ingresa al Panel de Administración para copiar y pegar el script SQL de creación de tablas.' 
+                  : `Servidor desconectado. Los nuevos usuarios se guardan solo en local en este celular. Configura las variables VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.`}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Invite Info Card */}
       <div className="bg-gradient-to-tr from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-lg space-y-4 relative overflow-hidden">

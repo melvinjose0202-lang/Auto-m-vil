@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 import { User, RechargeRequest, WithdrawRequest, HistoryItem } from '../types';
 
 const metaEnv = (import.meta as any).env || {};
-let supabaseUrl = (metaEnv.VITE_SUPABASE_URL || "").trim();
-const supabaseAnonKey = (metaEnv.VITE_SUPABASE_ANON_KEY || "").trim();
+let supabaseUrl = (metaEnv.VITE_SUPABASE_URL || "https://xvdiuujhzczanakyyrzb.supabase.co").trim();
+const supabaseAnonKey = (metaEnv.VITE_SUPABASE_ANON_KEY || "sb_publishable_t0MCM-PwNkbNW25x_ye7OA_m6jkhwbo").trim();
 
 // Auto-clean URL to make sure it is just the root domain, even if user inputs rest/v1 or trailing slashes
 if (supabaseUrl) {
@@ -433,5 +433,32 @@ export async function syncRegistrationToSupabase(newUser: User, bonusHistory: Hi
     console.error("syncRegistrationToSupabase error:", err);
   }
 }
+
+/**
+ * Perform direct real-time diagnostic checks on the Supabase connection quality and tables.
+ */
+export async function checkSupabaseConnection(): Promise<{
+  connected: boolean;
+  hasTables: boolean;
+  error: string | null;
+}> {
+  if (!supabase) {
+    return { connected: false, hasTables: false, error: "Base de datos (Supabase) no inicializada. Revisa URL/Clave." };
+  }
+  try {
+    const { data, error } = await supabase.from('users').select('phone').limit(1);
+    if (error) {
+      const msg = error.message;
+      if (msg.includes("Could not find the table") || msg.includes("does not exist") || error.code === "P0001" || msg.includes("relation \"public.users\" does not exist")) {
+        return { connected: true, hasTables: false, error: "Tablas inexistentes. Ejecuta el script SQL en el SQL Editor de tu consola de Supabase." };
+      }
+      return { connected: false, hasTables: false, error: msg };
+    }
+    return { connected: true, hasTables: true, error: null };
+  } catch (err: any) {
+    return { connected: false, hasTables: false, error: err.message || String(err) };
+  }
+}
+
 
 

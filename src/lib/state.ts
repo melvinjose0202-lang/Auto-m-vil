@@ -9,10 +9,11 @@ import {
   upsertReferralToSupabase,
   syncRegistrationToSupabase,
   supabase,
-  normalizePhoneTo10Digits
+  normalizePhoneTo10Digits,
+  checkSupabaseConnection
 } from './supabase';
 
-export { normalizePhoneTo10Digits };
+export { normalizePhoneTo10Digits, checkSupabaseConnection };
 
 
 export const VIP_LEVELS: VIPConfig[] = [
