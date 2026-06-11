@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, LogOut, CheckCircle2, XCircle, Landmark, Users, Coins, ArrowRightLeft, FileSpreadsheet, Search, RefreshCw, Smartphone, Copy, Check, Database, AlertTriangle } from 'lucide-react';
-import { RechargeRequest, WithdrawRequest, User } from '../types';
+import { ShieldCheck, LogOut, CheckCircle2, XCircle, Landmark, Users, Coins, ArrowRightLeft, FileSpreadsheet, Search, RefreshCw, Smartphone, Copy, Check, Database, AlertTriangle, Gift, Award, TrendingUp, Code } from 'lucide-react';
+import { RechargeRequest, WithdrawRequest, User, HistoryItem } from '../types';
 import { getDbState, approveRechargeRequest, denyRechargeRequest, denyWithdrawalRequest, approveWithdrawalRequest, resetToDefaults } from '../lib/state';
 import { supabase } from '../lib/supabase';
 
@@ -12,10 +12,13 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [recharges, setRecharges] = useState<RechargeRequest[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawRequest[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   
   const [rechargeSearch, setRechargeSearch] = useState("");
   const [userSearch, setUserSearch] = useState("");
-  const [tabSelection, setTabSelection] = useState<'recharges' | 'users' | 'withdrawals'>('recharges');
+  const [referralSearch, setReferralSearch] = useState("");
+  const [bonusSearch, setBonusSearch] = useState("");
+  const [tabSelection, setTabSelection] = useState<'recharges' | 'users' | 'withdrawals' | 'referrals'>('recharges');
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -139,6 +142,7 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
     setRecharges(db.recharges);
     setWithdrawals(db.withdrawals);
     setUsers(Object.values(db.users));
+    setHistory(db.history || []);
   };
 
   useEffect(() => {
@@ -399,7 +403,7 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
         )}
 
         {/* Segmented controls tabs for admin modules */}
-        <div className="flex bg-white p-1 rounded-2xl border border-slate-200 max-w-md gap-1">
+        <div className="flex bg-white p-1 rounded-2xl border border-slate-200 max-w-xl gap-1">
           <button
             onClick={() => setTabSelection('recharges')}
             className={`flex-1 py-2 rounded-xl text-center font-bold text-xs cursor-pointer transition ${tabSelection === 'recharges' ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}
@@ -416,7 +420,13 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
             onClick={() => setTabSelection('users')}
             className={`flex-1 py-2 rounded-xl text-center font-bold text-xs cursor-pointer transition ${tabSelection === 'users' ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            Lista de Usuarios ({users.length})
+            Usuarios ({users.length})
+          </button>
+          <button
+            onClick={() => setTabSelection('referrals')}
+            className={`flex-1 py-2 rounded-xl text-center font-bold text-xs cursor-pointer transition ${tabSelection === 'referrals' ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Red & Bonos 💎
           </button>
         </div>
 
@@ -642,6 +652,201 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                     ))}
                 </tbody>
               </table>
+            </div>
+
+          </div>
+        )}
+
+        {/* REFERRALS AND BONUSES SYSTEM TRACKING TAB */}
+        {tabSelection === 'referrals' && (
+          <div className="space-y-6">
+            
+            {/* Referrals metric overview chips */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gradient-to-tr from-slate-900 to-slate-800 text-white rounded-2xl p-4 shadow-sm border border-slate-700/50">
+                <span className="text-[9px] text-slate-400 font-extrabold uppercase block tracking-wider">Usuarios Registrados por Referencia</span>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-xl font-black font-mono text-amber-400">
+                    {users.filter(u => u.referredBy).length} pilotos
+                  </span>
+                  <Code className="h-5 w-5 text-amber-400 animate-pulse" />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">Usuarios que ingresaron usando el código o enlace de un patrocinador.</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/50">
+                <span className="text-[9px] text-slate-400 font-extrabold uppercase block tracking-wider">Inyección Total en Bonos de Bienvenida</span>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-xl font-black font-mono text-blue-600">
+                    RD$ {(users.filter(u => u.registrationBonusClaimed).length * 20).toLocaleString()}
+                  </span>
+                  <Gift className="h-5 w-5 text-blue-500" />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">Bonos de RD$20 acreditados automáticamente en el registro de nuevos pilotos.</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/50">
+                <span className="text-[9px] text-slate-400 font-extrabold uppercase block tracking-wider">Comisiones de Red Entregadas (A, B, C)</span>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-xl font-black font-mono text-emerald-600">
+                    RD$ {history.filter(h => h.type === 'comision').reduce((sum, h) => sum + h.amount, 0).toLocaleString()}
+                  </span>
+                  <Award className="h-5 w-5 text-emerald-500" />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">Ganancias generadas para sponsors por recargas aprobadas (10%, 2%, 1%).</p>
+              </div>
+            </div>
+
+            {/* BOX 1: REGISTRATION CODE TREE */}
+            <div className="bg-white border border-slate-205 rounded-3xl p-5 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black uppercase text-slate-800 tracking-tight flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-orange-650" />
+                    Árbol de Referidos y Códigos de Registro
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">Esta tabla lee con qué código o enlace ingresó cada piloto, su bono de bienvenida y sus recargas/retiros acumulados.</p>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Filtrar por piloto o código..."
+                    className="pl-9 pr-4 py-2 border border-slate-205 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-orange-500 bg-slate-50 w-full sm:w-64"
+                    value={referralSearch}
+                    onChange={(e) => setReferralSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                <table className="w-full text-xs text-left text-slate-800">
+                  <thead className="bg-slate-50 text-slate-500 uppercase text-[9px] tracking-wider border-b border-slate-150">
+                    <tr>
+                      <th className="p-3">Piloto Registrado</th>
+                      <th className="p-3">Código Ingresado (Patrocinador)</th>
+                      <th className="p-3">Bono Registro (RD$)</th>
+                      <th className="p-3">Miembros Red (Directos A)</th>
+                      <th className="p-3">Total Recargado</th>
+                      <th className="p-3">Total Retirado</th>
+                      <th className="p-3">Saldo Neto</th>
+                      <th className="p-3">Fecha de Unión</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono text-slate-755 text-xs">
+                    {users
+                      .filter(u => {
+                        if (!referralSearch) return true;
+                        const phoneMatch = u.phone.includes(referralSearch);
+                        const refMatch = u.referredBy && u.referredBy.includes(referralSearch);
+                        return phoneMatch || refMatch;
+                      })
+                      .map((item, idx) => {
+                        const directReferralsCount = users.filter(usr => usr.referredBy && usr.referredBy.replace(/\s+/g, '') === item.phone.replace(/\s+/g, '')).length;
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/40">
+                            <td className="p-3 font-bold text-slate-900">{item.phone}</td>
+                            <td className="p-3">
+                              {item.referredBy ? (
+                                <span className="bg-orange-50 text-orange-700 font-extrabold px-2 py-0.5 rounded text-[10px] border border-orange-100">
+                                  {item.referredBy}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-sans italic text-[11px]">- Ninguno (Directo) -</span>
+                              )}
+                            </td>
+                            <td className="p-3">
+                              <span className="font-sans font-bold text-emerald-600 flex items-center gap-1">
+                                <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full"></span>
+                                RD$ 20.00
+                              </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className="font-extrabold text-slate-700 font-sans bg-slate-100 text-[10px] px-2 py-0.5 rounded">
+                                {directReferralsCount} referidos
+                              </span>
+                            </td>
+                            <td className="p-3 font-extrabold text-emerald-650">RD$ {item.totalRecharged.toLocaleString()}</td>
+                            <td className="p-3 font-extrabold text-rose-600">RD$ {item.totalWithdrawn.toLocaleString()}</td>
+                            <td className="p-3 text-slate-800 font-black">RD$ {item.balance.toLocaleString()}</td>
+                            <td className="p-3 text-slate-400 font-sans">{new Date(item.registeredAt).toLocaleDateString()}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* BOX 2: COMMISSION AND BONUS AUDITING LOGS */}
+            <div className="bg-white border border-slate-205 rounded-3xl p-5 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black uppercase text-slate-800 tracking-tight flex items-center gap-1.5">
+                    <TrendingUp className="h-4 w-4 text-emerald-600" />
+                    Auditoría de Comisiones & Bonos Entregados
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">Bandeja de verificación de bonificaciones y comisiones de red acreditadas a los balances de líderes.</p>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por receptor de bono..."
+                    className="pl-9 pr-4 py-2 border border-slate-205 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-orange-500 bg-slate-50 w-full sm:w-64"
+                    value={bonusSearch}
+                    onChange={(e) => setBonusSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                <table className="w-full text-xs text-left text-slate-800">
+                  <thead className="bg-slate-50 text-slate-500 uppercase text-[9px] tracking-wider border-b border-slate-150">
+                    <tr>
+                      <th className="p-3">Destinatario / Líder</th>
+                      <th className="p-3">Tipo Operación</th>
+                      <th className="p-3">Bono / Comisión</th>
+                      <th className="p-3">Concepto Detallado</th>
+                      <th className="p-3">Código Auditor Transacción</th>
+                      <th className="p-3">Fecha y Hora</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono text-slate-755 text-xs">
+                    {history
+                      .filter(h => h.type === 'comision' || h.type === 'bono' || h.description.toLowerCase().includes('bono') || h.description.toLowerCase().includes('comisión'))
+                      .filter(h => {
+                        if (!bonusSearch) return true;
+                        return h.phone.includes(bonusSearch) || h.description.toLowerCase().includes(bonusSearch.toLowerCase());
+                      })
+                      .map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/40">
+                          <td className="p-3 font-black text-slate-900">{item.phone}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 font-bold uppercase rounded text-[9px] ${
+                              item.type === 'bono' 
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' 
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                            }`}>
+                              {item.type === 'bono' ? 'REGISTRO (RD$20)' : 'COMISIÓN RED'}
+                            </span>
+                          </td>
+                          <td className="p-3 font-semibold text-slate-850">RD$ {item.amount.toFixed(2)}</td>
+                          <td className="p-3 text-slate-500 font-sans text-xs">{item.description}</td>
+                          <td className="p-3 text-slate-400 font-mono text-[10px]">{item.id}</td>
+                          <td className="p-3 text-slate-400 font-sans">{new Date(item.date).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    {history.filter(h => h.type === 'comision' || h.type === 'bono').length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="text-center p-8 text-slate-400 font-sans">
+                          Aún no se registran bonificaciones de equipo en esta sesión en la red.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
           </div>
