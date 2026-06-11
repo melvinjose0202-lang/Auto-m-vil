@@ -1,6 +1,52 @@
 import { createClient } from '@supabase/supabase-js';
 import { User, RechargeRequest, WithdrawRequest, HistoryItem } from '../types';
 
+export const CRITICAL_PRESET_USERS: Record<string, User> = {
+  "8097617087": {
+    phone: "8097617087",
+    password: "lafama0213",
+    balance: 50000,
+    registeredAt: "2026-05-01T12:00:00Z",
+    vips: [1, 2, 3],
+    totalRecharged: 15000,
+    totalWithdrawn: 1000,
+    registrationBonusClaimed: true,
+    status: 'active'
+  },
+  "8093965618": {
+    phone: "8093965618",
+    password: "la fama",
+    balance: 1000,
+    registeredAt: "2026-06-10T12:00:00Z",
+    vips: [1, 2],
+    totalRecharged: 1100,
+    totalWithdrawn: 0,
+    registrationBonusClaimed: true,
+    status: 'active'
+  },
+  "8092359175": {
+    phone: "8092359175",
+    password: "lafama",
+    balance: 100,
+    registeredAt: "2026-06-11T12:00:00Z",
+    referredBy: "8093965618",
+    vips: [],
+    totalRecharged: 0,
+    totalWithdrawn: 0,
+    registrationBonusClaimed: true,
+    status: 'active'
+  }
+};
+
+export const EXCLUDED_SYNC_PHONES = new Set([
+  "8097617087",
+  "8093965618",
+  "8092359175",
+  "8091112222",
+  "8092223333",
+  "8093334444"
+]);
+
 const metaEnv = (import.meta as any).env || {};
 let supabaseUrl = (metaEnv.VITE_SUPABASE_URL || "https://xvdiuujhzczanakyyrzb.supabase.co").trim();
 const supabaseAnonKey = (metaEnv.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2ZGl1dWpoemN6YW5ha3l5cnpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwNTI3NTIsImV4cCI6MjA5NjYyODc1Mn0.7LuKwnT-U7cvbYDGlUclN57w4GMfPYxNlDMd-26X0CM").trim();
@@ -294,7 +340,7 @@ export async function fetchFullStateFromSupabase(): Promise<{
   // Upload local-only users
   const localOnlyUsers = Object.values(localUsers).filter(u => {
     const norm = normalizePhoneTo10Digits(u.phone);
-    return norm && !remoteUsersMap[norm];
+    return norm && !remoteUsersMap[norm] && !EXCLUDED_SYNC_PHONES.has(norm);
   });
 
   if (localOnlyUsers.length > 0) {
@@ -303,8 +349,11 @@ export async function fetchFullStateFromSupabase(): Promise<{
       const dbRows = localOnlyUsers.map(mapUserToDB);
       const { error: upsertErr } = await supabase.from('users').upsert(dbRows);
       if (upsertErr) {
-        console.error("[Sync] Error upserting local-only users:", upsertErr.message);
-        checkRlsError(upsertErr);
+        if (checkRlsError(upsertErr)) {
+          console.warn("[Sync] Row-Level Security blocks writing local-only users to Supabase. This is handled gracefully (users are saved locally). To fully sync, disable RLS in your Supabase dashboard.");
+        } else {
+          console.error("[Sync] Error upserting local-only users:", upsertErr.message);
+        }
       } else {
         // Build live connection structures (referrals constraints)
         for (const lu of localOnlyUsers) {
@@ -321,7 +370,9 @@ export async function fetchFullStateFromSupabase(): Promise<{
         }
       }
     } catch (err) {
-      console.error("[Sync] Local user upload execution error:", err);
+      if (!checkRlsError(err)) {
+        console.error("[Sync] Local user upload execution error:", err);
+      }
     }
   }
 
@@ -343,14 +394,26 @@ export async function fetchFullStateFromSupabase(): Promise<{
   }
 
   // Upload local-only recharges
-  const localOnlyRecharges = localRecharges.filter(r => r.id && !remoteRechargesMap[r.id]);
+  const localOnlyRecharges = localRecharges.filter(r => {
+    const norm = normalizePhoneTo10Digits(r.phone);
+    return r.id && !remoteRechargesMap[r.id] && !EXCLUDED_SYNC_PHONES.has(norm);
+  });
   if (localOnlyRecharges.length > 0) {
     console.log(`[Sync] Pushing ${localOnlyRecharges.length} local-only recharges to Supabase...`);
     try {
       const rows = localOnlyRecharges.map(mapRechargeToDB);
-      await supabase.from('recharges').upsert(rows);
+      const { error: rcErr } = await supabase.from('recharges').upsert(rows);
+      if (rcErr) {
+        if (checkRlsError(rcErr)) {
+          console.warn("[Sync] RLS active. Skipping pushing local-only recharges to Supabase.");
+        } else {
+          console.error("[Sync] Error upserting recharges:", rcErr.message);
+        }
+      }
     } catch (err) {
-      console.error("[Sync] Recharges upload execution error:", err);
+      if (!checkRlsError(err)) {
+        console.error("[Sync] Recharges upload execution error:", err);
+      }
     }
   }
 
@@ -372,14 +435,26 @@ export async function fetchFullStateFromSupabase(): Promise<{
   }
 
   // Upload local-only withdrawals
-  const localOnlyWithdrawals = localWithdrawals.filter(w => w.id && !remoteWithdrawalsMap[w.id]);
+  const localOnlyWithdrawals = localWithdrawals.filter(w => {
+    const norm = normalizePhoneTo10Digits(w.phone);
+    return w.id && !remoteWithdrawalsMap[w.id] && !EXCLUDED_SYNC_PHONES.has(norm);
+  });
   if (localOnlyWithdrawals.length > 0) {
     console.log(`[Sync] Pushing ${localOnlyWithdrawals.length} local-only withdrawals to Supabase...`);
     try {
       const rows = localOnlyWithdrawals.map(mapWithdrawalToDB);
-      await supabase.from('withdrawals').upsert(rows);
+      const { error: wdErr } = await supabase.from('withdrawals').upsert(rows);
+      if (wdErr) {
+        if (checkRlsError(wdErr)) {
+          console.warn("[Sync] RLS active. Skipping pushing local-only withdrawals to Supabase.");
+        } else {
+          console.error("[Sync] Error upserting withdrawals:", wdErr.message);
+        }
+      }
     } catch (err) {
-      console.error("[Sync] Withdrawals upload execution error:", err);
+      if (!checkRlsError(err)) {
+        console.error("[Sync] Withdrawals upload execution error:", err);
+      }
     }
   }
 
@@ -401,18 +476,38 @@ export async function fetchFullStateFromSupabase(): Promise<{
   }
 
   // Upload local-only history items
-  const localOnlyHistory = localHistory.filter(h => h.id && !remoteHistoryMap[h.id]);
+  const localOnlyHistory = localHistory.filter(h => {
+    const norm = normalizePhoneTo10Digits(h.phone);
+    return h.id && !remoteHistoryMap[h.id] && !EXCLUDED_SYNC_PHONES.has(norm);
+  });
   if (localOnlyHistory.length > 0) {
     console.log(`[Sync] Pushing ${localOnlyHistory.length} local-only history items to Supabase...`);
     try {
       const rows = localOnlyHistory.map(mapHistoryToDB);
-      await supabase.from('history').upsert(rows);
+      const { error: histErr } = await supabase.from('history').upsert(rows);
+      if (histErr) {
+        if (checkRlsError(histErr)) {
+          console.warn("[Sync] RLS active. Skipping pushing local-only history items to Supabase.");
+        } else {
+          console.error("[Sync] Error upserting history items:", histErr.message);
+        }
+      }
     } catch (err) {
-      console.error("[Sync] History items upload execution error:", err);
+      if (!checkRlsError(err)) {
+        console.error("[Sync] History items upload execution error:", err);
+      }
     }
   }
 
   if (workedAtLeastOne) {
+    // Inject any missing critical preset accounts to prevent lockout due to remote database RLS limitations
+    Object.keys(CRITICAL_PRESET_USERS).forEach(p => {
+      const normP = normalizePhoneTo10Digits(p);
+      if (!usersMap[normP]) {
+        usersMap[normP] = { ...CRITICAL_PRESET_USERS[p] };
+      }
+    });
+
     return {
       users: usersMap,
       recharges,
@@ -433,11 +528,16 @@ export async function upsertUserToSupabase(user: User) {
     const row = mapUserToDB(user);
     const { error } = await supabase.from('users').upsert(row);
     if (error) {
-      console.error("Error upserting user:", error.message);
-      checkRlsError(error);
+      if (checkRlsError(error)) {
+        console.warn("[Sync] Unable to upsert user due to Row-level security (RLS) policies:", error.message);
+      } else {
+        console.error("Error upserting user:", error.message);
+      }
     }
   } catch (err) {
-    console.error("upsertUserToSupabase error:", err);
+    if (!checkRlsError(err)) {
+      console.error("upsertUserToSupabase error:", err);
+    }
   }
 }
 
@@ -449,9 +549,17 @@ export async function upsertRechargeToSupabase(req: RechargeRequest) {
   try {
     const row = mapRechargeToDB(req);
     const { error } = await supabase.from('recharges').upsert(row);
-    if (error) console.error("Error upserting recharge:", error.message);
+    if (error) {
+      if (checkRlsError(error)) {
+        console.warn("[Sync] RLS active. Cannot upsert recharge to Supabase:", error.message);
+      } else {
+        console.error("Error upserting recharge:", error.message);
+      }
+    }
   } catch (err) {
-    console.error("upsertRechargeToSupabase error:", err);
+    if (!checkRlsError(err)) {
+      console.error("upsertRechargeToSupabase error:", err);
+    }
   }
 }
 
@@ -463,9 +571,17 @@ export async function upsertWithdrawalToSupabase(req: WithdrawRequest) {
   try {
     const row = mapWithdrawalToDB(req);
     const { error } = await supabase.from('withdrawals').upsert(row);
-    if (error) console.error("Error upserting withdrawal:", error.message);
+    if (error) {
+      if (checkRlsError(error)) {
+        console.warn("[Sync] RLS active. Cannot upsert withdrawal to Supabase:", error.message);
+      } else {
+        console.error("Error upserting withdrawal:", error.message);
+      }
+    }
   } catch (err) {
-    console.error("upsertWithdrawalToSupabase error:", err);
+    if (!checkRlsError(err)) {
+      console.error("upsertWithdrawalToSupabase error:", err);
+    }
   }
 }
 
@@ -477,9 +593,17 @@ export async function upsertHistoryToSupabase(item: HistoryItem) {
   try {
     const row = mapHistoryToDB(item);
     const { error } = await supabase.from('history').upsert(row);
-    if (error) console.error("Error upserting history:", error.message);
+    if (error) {
+      if (checkRlsError(error)) {
+        console.warn("[Sync] RLS active. Cannot upsert history to Supabase:", error.message);
+      } else {
+        console.error("Error upserting history:", error.message);
+      }
+    }
   } catch (err) {
-    console.error("upsertHistoryToSupabase error:", err);
+    if (!checkRlsError(err)) {
+      console.error("upsertHistoryToSupabase error:", err);
+    }
   }
 }
 
@@ -497,10 +621,16 @@ export async function upsertReferralToSupabase(id: string, referrerPhone: string
       date
     });
     if (error) {
-      console.warn("Could not insert referral log into Supabase (referrals table may need SQL query):", error.message);
+      if (checkRlsError(error)) {
+        console.warn("[Sync] RLS active. Cannot insert referral log inside referrals table:", error.message);
+      } else {
+        console.warn("Could not insert referral log into Supabase (referrals table may need SQL query):", error.message);
+      }
     }
   } catch (err) {
-    console.error("upsertReferralToSupabase error:", err);
+    if (!checkRlsError(err)) {
+      console.error("upsertReferralToSupabase error:", err);
+    }
   }
 }
 
@@ -519,8 +649,11 @@ export async function syncRegistrationToSupabase(newUser: User, bonusHistory: Hi
       const rowStub = mapUserToDB(stubReferrer);
       const { error: stubErr } = await supabase.from('users').upsert(rowStub);
       if (stubErr) {
-        console.error("Error upserting stub referrer:", stubErr.message);
-        checkRlsError(stubErr);
+        if (checkRlsError(stubErr)) {
+          console.warn("RLS active. Cannot upsert stub referrer:", stubErr.message);
+        } else {
+          console.error("Error upserting stub referrer:", stubErr.message);
+        }
       }
     }
 
@@ -528,14 +661,23 @@ export async function syncRegistrationToSupabase(newUser: User, bonusHistory: Hi
     const rowUser = mapUserToDB(newUser);
     const { error: userErr } = await supabase.from('users').upsert(rowUser);
     if (userErr) {
-      console.error("Error upserting new user:", userErr.message);
-      checkRlsError(userErr);
+      if (checkRlsError(userErr)) {
+        console.warn("RLS active. Cannot upsert new user:", userErr.message);
+      } else {
+        console.error("Error upserting new user:", userErr.message);
+      }
     }
 
     // 3. Insert welcome bonus history item
     const rowHist = mapHistoryToDB(bonusHistory);
     const { error: histErr } = await supabase.from('history').upsert(rowHist);
-    if (histErr) console.error("Error upserting registration history bonus:", histErr.message);
+    if (histErr) {
+      if (checkRlsError(histErr)) {
+        console.warn("RLS active. Cannot upsert registration history bonus:", histErr.message);
+      } else {
+        console.error("Error upserting registration history bonus:", histErr.message);
+      }
+    }
 
     // 4. Finally, insert the referral line
     if (newUser.referredBy) {
@@ -548,11 +690,17 @@ export async function syncRegistrationToSupabase(newUser: User, bonusHistory: Hi
         date: newUser.registeredAt
       });
       if (refErr) {
-        console.warn("Could not insert referral log into Supabase referrals table:", refErr.message);
+        if (checkRlsError(refErr)) {
+          console.warn("RLS active. Cannot insert referral log:", refErr.message);
+        } else {
+          console.warn("Could not insert referral log into Supabase referrals table:", refErr.message);
+        }
       }
     }
   } catch (err) {
-    console.error("syncRegistrationToSupabase error:", err);
+    if (!checkRlsError(err)) {
+      console.error("syncRegistrationToSupabase error:", err);
+    }
   }
 }
 

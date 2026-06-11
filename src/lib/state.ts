@@ -282,7 +282,6 @@ export function getDbState(): DBState {
       status: 'active'
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj));
-    upsertUserToSupabase(stateObj.users["8093965618"]);
   }
 
   // Ensure our requested user "8092359175" is always available in state with password "lafama"
@@ -300,7 +299,6 @@ export function getDbState(): DBState {
       status: 'active'
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj));
-    upsertUserToSupabase(stateObj.users["8092359175"]);
   }
 
   return stateObj;
