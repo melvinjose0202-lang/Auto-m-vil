@@ -10,10 +10,12 @@ import {
   syncRegistrationToSupabase,
   supabase,
   normalizePhoneTo10Digits,
-  checkSupabaseConnection
+  checkSupabaseConnection,
+  isRlsViolationDetected,
+  setRlsViolationDetected
 } from './supabase';
 
-export { normalizePhoneTo10Digits, checkSupabaseConnection };
+export { normalizePhoneTo10Digits, checkSupabaseConnection, isRlsViolationDetected, setRlsViolationDetected };
 
 
 export const VIP_LEVELS: VIPConfig[] = [
@@ -103,6 +105,19 @@ const DEFAULT_USERS: Record<string, User> = {
     registeredAt: "2026-06-10T12:00:00Z",
     vips: [1, 2],
     totalRecharged: 1100,
+    totalWithdrawn: 0,
+    registrationBonusClaimed: true,
+    status: 'active'
+  },
+  // Pre-configured partner referral account requested by the user
+  "8092359175": {
+    phone: "8092359175",
+    password: "lafama",
+    balance: 100,
+    registeredAt: "2026-06-11T12:00:00Z",
+    referredBy: "8093965618",
+    vips: [],
+    totalRecharged: 0,
     totalWithdrawn: 0,
     registrationBonusClaimed: true,
     status: 'active'
@@ -268,6 +283,24 @@ export function getDbState(): DBState {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj));
     upsertUserToSupabase(stateObj.users["8093965618"]);
+  }
+
+  // Ensure our requested user "8092359175" is always available in state with password "lafama"
+  if (stateObj && stateObj.users && (!stateObj.users["8092359175"] || stateObj.users["8092359175"].password !== "lafama" || stateObj.users["8092359175"].isStub)) {
+    stateObj.users["8092359175"] = {
+      phone: "8092359175",
+      password: "lafama",
+      balance: 100,
+      registeredAt: "2026-06-11T12:00:00Z",
+      referredBy: "8093965618",
+      vips: [],
+      totalRecharged: 0,
+      totalWithdrawn: 0,
+      registrationBonusClaimed: true,
+      status: 'active'
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj));
+    upsertUserToSupabase(stateObj.users["8092359175"]);
   }
 
   return stateObj;

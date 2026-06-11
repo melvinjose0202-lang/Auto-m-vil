@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, Check, Users, ShieldAlert, Award, ChevronDown, ChevronUp, Link, Sparkles, RefreshCw } from 'lucide-react';
 import { User } from '../types';
-import { getReferralNetworkDetails, ReferredDetails, syncStateWithSupabase, getDbState, normalizePhoneTo10Digits, checkSupabaseConnection } from '../lib/state';
+import { getReferralNetworkDetails, ReferredDetails, syncStateWithSupabase, getDbState, normalizePhoneTo10Digits, checkSupabaseConnection, isRlsViolationDetected } from '../lib/state';
 
 interface TeamProps {
   user: User;
@@ -17,6 +17,7 @@ export default function Team({ user, onUpdateUser }: TeamProps) {
   const [openA, setOpenA] = useState(true);
   const [openB, setOpenB] = useState(false);
   const [openC, setOpenC] = useState(false);
+  const [showRlsGuide, setShowRlsGuide] = useState(false);
 
   const [network, setNetwork] = useState({
     levelA: [] as ReferredDetails[],
@@ -124,32 +125,100 @@ export default function Team({ user, onUpdateUser }: TeamProps) {
 
       {/* Database Diagnostic Status Alert */}
       {dbStatus.isChecked && (
-        <div className={`p-4 rounded-3xl flex items-start gap-3 border text-xs font-medium transition shadow-sm ${
-          dbStatus.connected && dbStatus.hasTables 
-            ? 'bg-emerald-50 border-emerald-200/60 text-emerald-800' 
-            : dbStatus.connected 
-              ? 'bg-amber-50 border-amber-200/60 text-amber-800 font-sans animate-pulse' 
-              : 'bg-rose-50 border-rose-200/60 text-rose-800 font-sans'
-        }`}>
-          <div className={`h-3 w-3 rounded-full mt-0.5 flex-shrink-0 ${
-            dbStatus.connected && dbStatus.hasTables ? 'bg-emerald-500 shadow-sm shadow-emerald-200' : dbStatus.connected ? 'bg-amber-500' : 'bg-rose-500'
-          }`} />
-          <div className="space-y-1 text-left flex-1 font-sans">
-            <span className="font-black uppercase tracking-wider block text-[10px]">
-              {dbStatus.connected && dbStatus.hasTables 
-                ? 'Base de Datos Sincronizada' 
+        <div className="space-y-3 text-left">
+          <div className={`p-4 rounded-3xl flex items-start gap-3 border text-xs font-medium transition shadow-sm ${
+            isRlsViolationDetected()
+              ? 'bg-amber-50 border-amber-300 text-amber-950'
+              : dbStatus.connected && dbStatus.hasTables 
+                ? 'bg-emerald-50 border-emerald-200/60 text-emerald-800' 
                 : dbStatus.connected 
-                  ? 'Base de Datos en Espera (Esquema en Blanco)' 
-                  : 'Modo Offline Completo'}
-            </span>
-            <p className="text-[11px] leading-relaxed opacity-90 font-medium text-slate-600">
-              {dbStatus.connected && dbStatus.hasTables 
-                ? 'Conexión activa con el servidor Supabase. Tu equipo y sus registros se sincronizan en tiempo real.' 
-                : dbStatus.connected 
-                  ? 'Supabase está conectado pero falta inicializar el esquema. Ingresa al Panel de Administración para copiar y pegar el script SQL de creación de tablas.' 
-                  : `Servidor desconectado. Los nuevos usuarios se guardan solo en local en este celular. Configura las variables VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.`}
-            </p>
+                  ? 'bg-amber-50 border-amber-200/60 text-amber-800 font-sans animate-pulse' 
+                  : 'bg-rose-50 border-rose-200/60 text-rose-800 font-sans'
+          }`}>
+            <div className={`h-3 w-3 rounded-full mt-0.5 flex-shrink-0 ${
+              isRlsViolationDetected()
+                ? 'bg-amber-600 animate-bounce'
+                : dbStatus.connected && dbStatus.hasTables 
+                  ? 'bg-emerald-500 shadow-sm shadow-emerald-200' 
+                  : dbStatus.connected 
+                    ? 'bg-amber-500' 
+                    : 'bg-rose-500'
+            }`} />
+            <div className="space-y-1 text-left flex-1 font-sans">
+              <span className="font-black uppercase tracking-wider block text-[10px]">
+                {isRlsViolationDetected()
+                  ? '⚠️ ALERTA: Seguridad RLS Activa en Supabase'
+                  : dbStatus.connected && dbStatus.hasTables 
+                    ? 'Base de Datos Sincronizada' 
+                    : dbStatus.connected 
+                      ? 'Base de Datos en Espera (Esquema en Blanco)' 
+                      : 'Modo Offline Completo'}
+              </span>
+              <p className="text-[11px] leading-relaxed opacity-90 font-medium text-slate-700">
+                {isRlsViolationDetected() ? (
+                  <>
+                    <strong className="text-amber-950 block font-bold mb-1">¡La seguridad RLS está bloqueando el registro de tus referidos!</strong>
+                    Supabase tiene habilitado "Row-Level Security (RLS)" en las tablas creadas, impidiendo que la aplicación registre nuevos usuarios o guarde sus datos. Pulsa el botón abajo para obtener la solución en 1 minuto.
+                  </>
+                ) : dbStatus.connected && dbStatus.hasTables 
+                  ? 'Conexión activa con el servidor Supabase. Tu equipo y sus registros se sincronizan en tiempo real.' 
+                  : dbStatus.connected 
+                    ? 'Supabase está conectado pero falta inicializar el esquema. Ingresa al Panel de Administración para copiar y pegar el script SQL de creación de tablas.' 
+                    : `Servidor desconectado. Los nuevos usuarios se guardan solo en local en este celular. Configura las variables VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.`}
+              </p>
+              
+              {isRlsViolationDetected() && (
+                <button
+                  type="button"
+                  id="btn-toggle-rls-guide"
+                  onClick={() => setShowRlsGuide(!showRlsGuide)}
+                  className="mt-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-[10px] uppercase rounded-xl transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                >
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  {showRlsGuide ? 'Ocultar Instrucciones RLS' : 'Ver solución de referidos RLS (1 min)'}
+                </button>
+              )}
+            </div>
           </div>
+
+          {isRlsViolationDetected() && showRlsGuide && (
+            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-4 space-y-3.5 text-xs text-slate-700 shadow-inner">
+              <h4 className="font-black uppercase tracking-wide text-xs text-slate-800 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-orange-500" /> Guía de Solución: Desactivar RLS
+              </h4>
+              
+              <div className="space-y-2 leading-relaxed">
+                <p>Supabase habilita la opción de control <strong>Row Level Security (RLS)</strong> por defecto al crear las tablas. Para que tu aplicación pueda guardar libremente la información desde el celular con la clave pública, debes desactivarla.</p>
+                
+                <div className="p-3 bg-slate-900 text-slate-100 rounded-2xl font-mono text-[10px] overflow-x-auto space-y-2 border border-slate-800">
+                  <span className="text-orange-400 block font-bold tracking-wider">// OPCIÓN A: Ejecuta este código en el SQL Editor de tu consola de Supabase</span>
+                  <code className="block select-all whitespace-pre leading-normal">
+{`ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.referrals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recharges DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.withdrawals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.history DISABLE ROW LEVEL SECURITY;`}
+                  </code>
+                </div>
+                
+                <div className="space-y-1 mt-3">
+                  <span className="font-extrabold text-slate-800 block uppercase text-[10px] tracking-wide text-orange-600">OPCIÓN B: Desactivar desde la interfaz de Supabase</span>
+                  <ol className="list-decimal pl-4.5 space-y-1.5 text-[11px] text-slate-650">
+                    <li>Ingresa a tu panel de control de de <strong className="font-bold">Supabase</strong>.</li>
+                    <li>Ve al menú de la izquierda y haz clic en <strong className="font-bold">Table Editor</strong> o <strong className="font-bold">Database</strong>.</li>
+                    <li>Selecciona la tabla <strong className="font-bold">`users`</strong>.</li>
+                    <li>Arriba a la derecha, debajo del nombre de tu proyecto, verás un botón verde/celeste que dice <strong className="font-bold text-slate-700">"RLS Enabled"</strong> o similar.</li>
+                    <li>Haz clic en él y confirma para desactivarlo.</li>
+                    <li>¡Repite este mismo paso para las tablas <strong className="font-bold font-mono text-[10px]">`referrals`, `recharges`, `withdrawals` y `history`</strong>!</li>
+                  </ol>
+                </div>
+
+                <div className="pt-2 border-t border-slate-205 mt-2">
+                  <p className="text-[11px] text-slate-500 font-semibold italic">Una vez desactivada la seguridad, vuelve aquí y pulsa el botón de recargar arriba a la derecha 🔄 para que los referidos guardados lokalmente se carguen en tu base de datos de manera inmediata.</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

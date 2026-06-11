@@ -26,6 +26,37 @@ if (supabaseUrl && supabaseAnonKey && isValidHttpUrl(supabaseUrl)) {
 
 export const supabase = supabaseClient;
 
+let lastRlsViolationDetected = false;
+
+export function isRlsViolationDetected(): boolean {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('autosport_supabase_rls_error') === 'true';
+  }
+  return lastRlsViolationDetected;
+}
+
+export function setRlsViolationDetected(val: boolean) {
+  lastRlsViolationDetected = val;
+  if (typeof window !== 'undefined') {
+    if (val) {
+      localStorage.setItem('autosport_supabase_rls_error', 'true');
+    } else {
+      localStorage.removeItem('autosport_supabase_rls_error');
+    }
+  }
+}
+
+export function checkRlsError(err: any): boolean {
+  if (err && err.message) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes("row-level security") || msg.includes("row level security") || msg.includes("violates row-level security policy") || msg.includes("security policy") || msg.includes("rls")) {
+      setRlsViolationDetected(true);
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Universal 10-digit phone number normalizer for Dominican Republic / US format.
  * Strips formatting + ensures we match the last 10 digits to bypass any country code mismatches.
@@ -205,7 +236,8 @@ export async function seedSupabaseIfNeeded(
 }
 
 /**
- * Downloads the entire database from Supabase and populates our state
+ * Downloads the entire database from Supabase and populates our state.
+ * Also syncs any offline/local-only records to Supabase (bidirectional sync).
  */
 export async function fetchFullStateFromSupabase(): Promise<{
   users: Record<string, User>;
@@ -242,23 +274,59 @@ export async function fetchFullStateFromSupabase(): Promise<{
   let workedAtLeastOne = false;
 
   // 1. Fetch Users
+  const remoteUsersMap: Record<string, boolean> = {};
   try {
     const { data, error } = await supabase.from('users').select('*');
     if (error) {
       console.error("Users table fetch failed:", error.message);
     } else if (data) {
       workedAtLeastOne = true;
-      // Overwrite or update with latest database records
       data.forEach(row => {
         const normalizedKey = normalizePhoneTo10Digits(row.phone);
         usersMap[normalizedKey] = mapUserFromDB(row);
+        remoteUsersMap[normalizedKey] = true;
       });
     }
   } catch (e) {
     console.error("Users fetch exception:", e);
   }
 
+  // Upload local-only users
+  const localOnlyUsers = Object.values(localUsers).filter(u => {
+    const norm = normalizePhoneTo10Digits(u.phone);
+    return norm && !remoteUsersMap[norm];
+  });
+
+  if (localOnlyUsers.length > 0) {
+    console.log(`[Sync] Pushing ${localOnlyUsers.length} local-only users to Supabase...`);
+    try {
+      const dbRows = localOnlyUsers.map(mapUserToDB);
+      const { error: upsertErr } = await supabase.from('users').upsert(dbRows);
+      if (upsertErr) {
+        console.error("[Sync] Error upserting local-only users:", upsertErr.message);
+        checkRlsError(upsertErr);
+      } else {
+        // Build live connection structures (referrals constraints)
+        for (const lu of localOnlyUsers) {
+          if (lu.referredBy) {
+            const refLogId = "R-" + Math.random().toString(36).substr(2, 9).toUpperCase();
+            await supabase.from('referrals').upsert({
+              id: refLogId,
+              referrer_phone: normalizePhoneTo10Digits(lu.referredBy),
+              referred_phone: normalizePhoneTo10Digits(lu.phone),
+              level: 'A',
+              date: lu.registeredAt
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[Sync] Local user upload execution error:", err);
+    }
+  }
+
   // 2. Fetch Recharges
+  const remoteRechargesMap: Record<string, boolean> = {};
   try {
     const { data, error } = await supabase.from('recharges').select('*').order('date', { ascending: false });
     if (error) {
@@ -266,12 +334,28 @@ export async function fetchFullStateFromSupabase(): Promise<{
     } else if (data) {
       workedAtLeastOne = true;
       recharges = data.map(mapRechargeFromDB);
+      data.forEach(row => {
+        remoteRechargesMap[row.id] = true;
+      });
     }
   } catch (e) {
     console.error("Recharges fetch exception:", e);
   }
 
+  // Upload local-only recharges
+  const localOnlyRecharges = localRecharges.filter(r => r.id && !remoteRechargesMap[r.id]);
+  if (localOnlyRecharges.length > 0) {
+    console.log(`[Sync] Pushing ${localOnlyRecharges.length} local-only recharges to Supabase...`);
+    try {
+      const rows = localOnlyRecharges.map(mapRechargeToDB);
+      await supabase.from('recharges').upsert(rows);
+    } catch (err) {
+      console.error("[Sync] Recharges upload execution error:", err);
+    }
+  }
+
   // 3. Fetch Withdrawals
+  const remoteWithdrawalsMap: Record<string, boolean> = {};
   try {
     const { data, error } = await supabase.from('withdrawals').select('*').order('date', { ascending: false });
     if (error) {
@@ -279,12 +363,28 @@ export async function fetchFullStateFromSupabase(): Promise<{
     } else if (data) {
       workedAtLeastOne = true;
       withdrawals = data.map(mapWithdrawalFromDB);
+      data.forEach(row => {
+        remoteWithdrawalsMap[row.id] = true;
+      });
     }
   } catch (e) {
     console.error("Withdrawals fetch exception:", e);
   }
 
+  // Upload local-only withdrawals
+  const localOnlyWithdrawals = localWithdrawals.filter(w => w.id && !remoteWithdrawalsMap[w.id]);
+  if (localOnlyWithdrawals.length > 0) {
+    console.log(`[Sync] Pushing ${localOnlyWithdrawals.length} local-only withdrawals to Supabase...`);
+    try {
+      const rows = localOnlyWithdrawals.map(mapWithdrawalToDB);
+      await supabase.from('withdrawals').upsert(rows);
+    } catch (err) {
+      console.error("[Sync] Withdrawals upload execution error:", err);
+    }
+  }
+
   // 4. Fetch History
+  const remoteHistoryMap: Record<string, boolean> = {};
   try {
     const { data, error } = await supabase.from('history').select('*').order('date', { ascending: false });
     if (error) {
@@ -292,9 +392,24 @@ export async function fetchFullStateFromSupabase(): Promise<{
     } else if (data) {
       workedAtLeastOne = true;
       history = data.map(mapHistoryFromDB);
+      data.forEach(row => {
+        remoteHistoryMap[row.id] = true;
+      });
     }
   } catch (e) {
     console.error("History fetch exception:", e);
+  }
+
+  // Upload local-only history items
+  const localOnlyHistory = localHistory.filter(h => h.id && !remoteHistoryMap[h.id]);
+  if (localOnlyHistory.length > 0) {
+    console.log(`[Sync] Pushing ${localOnlyHistory.length} local-only history items to Supabase...`);
+    try {
+      const rows = localOnlyHistory.map(mapHistoryToDB);
+      await supabase.from('history').upsert(rows);
+    } catch (err) {
+      console.error("[Sync] History items upload execution error:", err);
+    }
   }
 
   if (workedAtLeastOne) {
@@ -317,7 +432,10 @@ export async function upsertUserToSupabase(user: User) {
   try {
     const row = mapUserToDB(user);
     const { error } = await supabase.from('users').upsert(row);
-    if (error) console.error("Error upserting user:", error.message);
+    if (error) {
+      console.error("Error upserting user:", error.message);
+      checkRlsError(error);
+    }
   } catch (err) {
     console.error("upsertUserToSupabase error:", err);
   }
@@ -400,7 +518,10 @@ export async function syncRegistrationToSupabase(newUser: User, bonusHistory: Hi
     if (stubReferrer) {
       const rowStub = mapUserToDB(stubReferrer);
       const { error: stubErr } = await supabase.from('users').upsert(rowStub);
-      if (stubErr) console.error("Error upserting stub referrer:", stubErr.message);
+      if (stubErr) {
+        console.error("Error upserting stub referrer:", stubErr.message);
+        checkRlsError(stubErr);
+      }
     }
 
     // 2. Upsert the new registered user
@@ -408,6 +529,7 @@ export async function syncRegistrationToSupabase(newUser: User, bonusHistory: Hi
     const { error: userErr } = await supabase.from('users').upsert(rowUser);
     if (userErr) {
       console.error("Error upserting new user:", userErr.message);
+      checkRlsError(userErr);
     }
 
     // 3. Insert welcome bonus history item
