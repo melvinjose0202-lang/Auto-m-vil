@@ -158,13 +158,13 @@ export default function Team({ user, onUpdateUser }: TeamProps) {
                 {isRlsViolationDetected() ? (
                   <>
                     <strong className="text-amber-950 block font-bold mb-1">¡La seguridad RLS está bloqueando el registro de tus referidos!</strong>
-                    Supabase tiene habilitado "Row-Level Security (RLS)" en las tablas creadas, impidiendo que la aplicación registre nuevos usuarios o guarde sus datos. Pulsa el botón abajo para obtener la solución en 1 minuto.
+                    Detectamos que activaste Row-Level Security (RLS) en Supabase pero no has configurado políticas de acceso público. Por lo tanto, Supabase bloquea los registros. Elige abajo una de las opciones para solucionarlo.
                   </>
                 ) : dbStatus.connected && dbStatus.hasTables 
                   ? 'Conexión activa con el servidor Supabase. Tu equipo y sus registros se sincronizan en tiempo real.' 
                   : dbStatus.connected 
                     ? 'Supabase está conectado pero falta inicializar el esquema. Ingresa al Panel de Administración para copiar y pegar el script SQL de creación de tablas.' 
-                    : `Servidor desconectado. Los nuevos usuarios se guardan solo en local en este celular. Configura las variables VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.`}
+                    : `Servidor desconectado: ${dbStatus.error || "No se pudo conectar a la base de datos."}. Los nuevos usuarios se guardan solo en local en este celular. Revisa que VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY estén configuradas correctamente.`}
               </p>
               
               {isRlsViolationDetected() && (
@@ -175,46 +175,88 @@ export default function Team({ user, onUpdateUser }: TeamProps) {
                   className="mt-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-[10px] uppercase rounded-xl transition-all flex items-center gap-1 shadow-sm cursor-pointer"
                 >
                   <ShieldAlert className="h-3.5 w-3.5" />
-                  {showRlsGuide ? 'Ocultar Instrucciones RLS' : 'Ver solución de referidos RLS (1 min)'}
+                  {showRlsGuide ? 'Ocultar Instrucciones RLS' : 'Ver 2 Soluciones para RLS (1 min)'}
                 </button>
               )}
             </div>
           </div>
 
           {isRlsViolationDetected() && showRlsGuide && (
-            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-4 space-y-3.5 text-xs text-slate-700 shadow-inner">
+            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-4 space-y-4 text-xs text-slate-700 shadow-inner">
               <h4 className="font-black uppercase tracking-wide text-xs text-slate-800 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-orange-500" /> Guía de Solución: Desactivar RLS
+                <Sparkles className="h-4 w-4 text-orange-500" /> Guía para solucionar referidos con RLS
               </h4>
               
-              <div className="space-y-2 leading-relaxed">
-                <p>Supabase habilita la opción de control <strong>Row Level Security (RLS)</strong> por defecto al crear las tablas. Para que tu aplicación pueda guardar libremente la información desde el celular con la clave pública, debes desactivarla.</p>
+              <div className="space-y-3 leading-relaxed">
+                <p>Al tener <strong>Row-Level Security (RLS)</strong> activo en Supabase, el servidor deniega la lectura y escritura de referidos a menos que configures políticas o uses opciones de desactivación. Elige una de estas soluciones:</p>
                 
-                <div className="p-3 bg-slate-900 text-slate-100 rounded-2xl font-mono text-[10px] overflow-x-auto space-y-2 border border-slate-800">
-                  <span className="text-orange-400 block font-bold tracking-wider">// OPCIÓN A: Ejecuta este código en el SQL Editor de tu consola de Supabase</span>
-                  <code className="block select-all whitespace-pre leading-normal">
+                {/* Solucion 1 */}
+                <div className="space-y-1.5 border-l-2 border-orange-500 pl-3">
+                  <span className="font-extrabold text-slate-850 block uppercase text-[10px] tracking-wide text-orange-600">Solución A (La más fácil y recomendada): Desactivar RLS</span>
+                  <p className="text-[11px] text-slate-600">Esto quita de raíz los bloqueos y te permitirá sincronizar de inmediato. Ejecuta este comando en la sección <strong>SQL Editor</strong> de tu panel de Supabase:</p>
+                  <div className="p-3 bg-slate-900 text-slate-100 rounded-2xl font-mono text-[10px] overflow-x-auto space-y-1 border border-slate-800">
+                    <code className="block select-all whitespace-pre leading-normal">
 {`ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.referrals DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recharges DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.withdrawals DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.history DISABLE ROW LEVEL SECURITY;`}
-                  </code>
+                    </code>
+                  </div>
                 </div>
-                
-                <div className="space-y-1 mt-3">
-                  <span className="font-extrabold text-slate-800 block uppercase text-[10px] tracking-wide text-orange-600">OPCIÓN B: Desactivar desde la interfaz de Supabase</span>
-                  <ol className="list-decimal pl-4.5 space-y-1.5 text-[11px] text-slate-650">
-                    <li>Ingresa a tu panel de control de de <strong className="font-bold">Supabase</strong>.</li>
-                    <li>Ve al menú de la izquierda y haz clic en <strong className="font-bold">Table Editor</strong> o <strong className="font-bold">Database</strong>.</li>
-                    <li>Selecciona la tabla <strong className="font-bold">`users`</strong>.</li>
-                    <li>Arriba a la derecha, debajo del nombre de tu proyecto, verás un botón verde/celeste que dice <strong className="font-bold text-slate-700">"RLS Enabled"</strong> o similar.</li>
-                    <li>Haz clic en él y confirma para desactivarlo.</li>
-                    <li>¡Repite este mismo paso para las tablas <strong className="font-bold font-mono text-[10px]">`referrals`, `recharges`, `withdrawals` y `history`</strong>!</li>
-                  </ol>
+
+                {/* Solucion 2 */}
+                <div className="space-y-1.5 border-l-2 border-indigo-500 pl-3 pt-2">
+                  <span className="font-extrabold text-slate-850 block uppercase text-[10px] tracking-wide text-indigo-600">Solución B: Mantener RLS Activo pero añadir Políticas Públicas</span>
+                  <p className="text-[11px] text-slate-600">Si deseas mantener RLS activado por seguridad, debes habilitar políticas de acceso público para que la app pueda leer y guardar. Ejecuta este script en tu <strong>SQL Editor</strong> de Supabase:</p>
+                  <div className="p-3 bg-slate-900 text-slate-100 rounded-2xl font-mono text-[9.5px] overflow-x-auto h-48 border border-slate-800">
+                    <code className="block select-all whitespace-pre leading-normal">
+{`-- Políticas para usuarios
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public select users" ON public.users;
+CREATE POLICY "Public select users" ON public.users FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public insert users" ON public.users;
+CREATE POLICY "Public insert users" ON public.users FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Public update users" ON public.users;
+CREATE POLICY "Public update users" ON public.users FOR UPDATE USING (true);
+
+-- Políticas para referidos
+ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public select referrals" ON public.referrals;
+CREATE POLICY "Public select referrals" ON public.referrals FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public insert referrals" ON public.referrals;
+CREATE POLICY "Public insert referrals" ON public.referrals FOR INSERT WITH CHECK (true);
+
+-- Políticas para recargas
+ALTER TABLE public.recharges ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public select recharges" ON public.recharges;
+CREATE POLICY "Public select recharges" ON public.recharges FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public insert recharges" ON public.recharges;
+CREATE POLICY "Public insert recharges" ON public.recharges FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Public update recharges" ON public.recharges;
+CREATE POLICY "Public update recharges" ON public.recharges FOR UPDATE USING (true);
+
+-- Políticas para retiros
+ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public select withdrawals" ON public.withdrawals;
+CREATE POLICY "Public select withdrawals" ON public.withdrawals FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public insert withdrawals" ON public.withdrawals;
+CREATE POLICY "Public insert withdrawals" ON public.withdrawals FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Public update withdrawals" ON public.withdrawals;
+CREATE POLICY "Public update withdrawals" ON public.withdrawals FOR UPDATE USING (true);
+
+-- Políticas para historial (history)
+ALTER TABLE public.history ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public select history" ON public.history;
+CREATE POLICY "Public select history" ON public.history FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public insert history" ON public.history;
+CREATE POLICY "Public insert history" ON public.history FOR INSERT WITH CHECK (true);`}
+                    </code>
+                  </div>
                 </div>
 
                 <div className="pt-2 border-t border-slate-205 mt-2">
-                  <p className="text-[11px] text-slate-500 font-semibold italic">Una vez desactivada la seguridad, vuelve aquí y pulsa el botón de recargar arriba a la derecha 🔄 para que los referidos guardados lokalmente se carguen en tu base de datos de manera inmediata.</p>
+                  <p className="text-[11px] text-slate-500 font-semibold italic">Una vez ejecutada cualquiera de las dos soluciones en tu SQL Editor, vuelve aquí y pulsa el botón de recargar arriba a la derecha 🔄 para que todo tu equipo de referidos se cargue y sincronice de inmediato en pantalla.</p>
                 </div>
               </div>
             </div>
