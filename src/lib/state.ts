@@ -827,6 +827,7 @@ export function purchaseVIP(phone: string, vipId: number): { error: string | nul
   user.balance -= vip.price;
   user.vips.push(vipId);
   user.vips.sort((a,b) => a-b);
+  user.lastYieldClaimedAt = new Date().toISOString();
   state.users[phone] = user;
 
   // Log in history
@@ -895,7 +896,7 @@ export function claimDailyVehicleYields(phone: string): { success: boolean; earn
     return {
       success: false,
       earned: 0,
-      message: `Tus motores ya están en marcha para hoy. Espera ${hours}h ${minutes}m ${seconds}s para poner el garaje en marcha nuevamente y obtener nuevas ganancias.`
+      message: `Tus motores ya están en marcha, o has adquirido/recibido un nuevo auto VIP recientemente. Al comprar o recibir un VIP, debes esperar 24 horas para reclamar su rendimiento diario. Tiempo restante: ${hours}h ${minutes}m ${seconds}s.`
     };
   }
 
@@ -1313,7 +1314,14 @@ export function updateUserVips(phone: string, vips: number[]): { error: string |
   }
 
   // Ensure unique sorted list of numbers
-  user.vips = Array.from(new Set(vips)).map(Number).sort((a, b) => a - b);
+  const oldVips = user.vips || [];
+  const newVips = Array.from(new Set(vips)).map(Number).sort((a, b) => a - b);
+  const addedNewVip = newVips.some(v => !oldVips.includes(v));
+
+  user.vips = newVips;
+  if (addedNewVip) {
+    user.lastYieldClaimedAt = new Date().toISOString();
+  }
   state.users[cleanPhone] = user;
   saveDbState(state);
 
