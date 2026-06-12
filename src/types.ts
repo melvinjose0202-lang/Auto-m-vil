@@ -20,6 +20,7 @@ export interface User {
   registrationBonusClaimed: boolean;
   status: 'active' | 'suspended';
   isStub?: boolean; // temporary referral-placeholder account
+  lastYieldClaimedAt?: string; // ISO string of last daily yield claim
 }
 
 export interface RechargeRequest {

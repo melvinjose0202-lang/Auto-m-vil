@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, TrendingUp, Sparkles, Navigation, Award, Wallet, CircleDollarSign, CheckCircle2, RefreshCw } from 'lucide-react';
 import { User, VIPConfig } from '../types';
-import { VIP_LEVELS, claimDailyVehicleYields } from '../lib/state';
+import { VIP_LEVELS, claimDailyVehicleYields, getTimeLeftForDailyYield } from '../lib/state';
 
 interface DashboardProps {
   user: User;
@@ -13,6 +13,26 @@ export default function Dashboard({ user, onUpdateUser, onNavigateToTab }: Dashb
   const [activeSlide, setActiveSlide] = useState(0);
   const [claiming, setClaiming] = useState(false);
   const [claimResult, setClaimResult] = useState<{ success: boolean; earned: number; message: string } | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+
+  // Live countdown update
+  useEffect(() => {
+    setCooldownRemaining(getTimeLeftForDailyYield(user.phone));
+
+    const interval = setInterval(() => {
+      const remaining = getTimeLeftForDailyYield(user.phone);
+      setCooldownRemaining(remaining);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [user.phone, user.lastYieldClaimedAt]);
+
+  const formatCooldown = (ms: number) => {
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
   
   // Custom slide elements matching the image styling
   const slides = [
@@ -236,21 +256,28 @@ export default function Dashboard({ user, onUpdateUser, onNavigateToTab }: Dashb
 
         {/* Lucky wheel card directly copying photo: "¡Gira la ruleta de la suerte...!" */}
         <div 
-          onClick={handleClaimYields}
-          className="bg-gradient-to-br from-orange-400 via-orange-500 to-red-600 text-white rounded-3xl p-5 shadow-md shadow-orange-100 cursor-pointer overflow-hidden relative group hover:scale-[1.02] transition-transform"
+          onClick={cooldownRemaining > 0 ? undefined : handleClaimYields}
+          className={`bg-gradient-to-br text-white rounded-3xl p-5 shadow-md overflow-hidden relative group hover:scale-[1.02] transition-transform ${
+            cooldownRemaining > 0 
+              ? 'from-slate-600 via-slate-700 to-slate-800 cursor-not-allowed shadow-none' 
+              : 'from-orange-400 via-orange-500 to-red-600 cursor-pointer shadow-orange-100'
+          }`}
         >
           <div className="absolute top-2 right-2 opacity-15 text-white transform translate-x-3 -translate-y-2">
             <Sparkles className="h-20 w-20" />
           </div>
           <span className="text-[10px] font-extrabold uppercase tracking-wider bg-black/20 text-white px-2 py-0.5 rounded-full">
-            Interactivo
+            {cooldownRemaining > 0 ? 'En Marcha' : 'Interactivo'}
           </span>
           <h4 className="text-md font-extrabold mt-3 text-white leading-5">Generador Diario</h4>
           <p className="text-[10px] text-orange-100 mt-1.5 line-clamp-2">
-            ¡Pulsa para rugir motores y cobrar tus dividendos garantizados del 5% al instante!
+            {cooldownRemaining > 0 
+              ? 'Tus motores ya están operando hoy. Espera el próximo intervalo diario de 24 horas.'
+              : '¡Pulsa para rugir motores y cobrar tus dividendos garantizados del 5% al instante!'
+            }
           </p>
           <div className="mt-4 flex items-center justify-between text-xs font-bold text-white bg-black/20 px-3 py-1.5 rounded-xl backdrop-blur-sm self-start inline-block">
-            <span>Rugir Motores &gt;</span>
+            <span>{cooldownRemaining > 0 ? formatCooldown(cooldownRemaining) : 'Rugir Motores >'}</span>
           </div>
         </div>
       </div>
@@ -283,13 +310,24 @@ export default function Dashboard({ user, onUpdateUser, onNavigateToTab }: Dashb
 
         <button
           onClick={handleClaimYields}
-          disabled={claiming}
-          className={`w-full py-3.5 px-4 rounded-xl font-bold uppercase tracking-wider text-xs transition duration-300 shadow-md cursor-pointer flex items-center justify-center gap-2 ${claiming ? 'bg-slate-200 text-slate-400 border border-slate-300' : 'bg-slate-900 hover:bg-black text-white'}`}
+          disabled={claiming || cooldownRemaining > 0}
+          className={`w-full py-3.5 px-4 rounded-xl font-bold uppercase tracking-wider text-xs transition duration-300 shadow-md flex items-center justify-center gap-2 ${
+            claiming 
+              ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed' 
+              : cooldownRemaining > 0
+                ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-none cursor-not-allowed'
+                : 'bg-slate-900 hover:bg-black text-white cursor-pointer'
+          }`}
         >
           {claiming ? (
             <>
               <RefreshCw className="h-4 w-4 animate-spin" />
               <span>Iniciando Transmisión... SP-5%</span>
+            </>
+          ) : cooldownRemaining > 0 ? (
+            <>
+              <div className="h-2 w-2 rounded-full bg-amber-500 animate-ping mr-1" />
+              <span>Motores en marcha — Volver en {formatCooldown(cooldownRemaining)}</span>
             </>
           ) : (
             <span>Poner Garaje en Marcha (5% Diario)</span>

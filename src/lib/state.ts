@@ -779,6 +779,28 @@ export function purchaseVIP(phone: string, vipId: number): { error: string | nul
 }
 
 /**
+ * Calculates remaining cooldown time in milliseconds for the user's daily yield
+ */
+export function getTimeLeftForDailyYield(phone: string): number {
+  const state = getDbState();
+  const user = state.users[phone];
+  if (!user) return 0;
+
+  const lastHistoryClaim = state.history.find(h => h.phone === phone && h.type === "rendimiento");
+  const lastPropClaim = user.lastYieldClaimedAt;
+  const lastClaimDateStr = lastPropClaim || lastHistoryClaim?.date;
+
+  if (!lastClaimDateStr) return 0;
+
+  const elapsedMs = Date.now() - new Date(lastClaimDateStr).getTime();
+  const limitMs = 24 * 60 * 60 * 1000;
+  if (elapsedMs < limitMs) {
+    return limitMs - elapsedMs;
+  }
+  return 0;
+}
+
+/**
  * Interactive engine to collect daily yields for owned VIPs
  */
 export function claimDailyVehicleYields(phone: string): { success: boolean; earned: number; message: string } {
@@ -790,6 +812,19 @@ export function claimDailyVehicleYields(phone: string): { success: boolean; earn
 
   if (user.vips.length === 0) {
     return { success: false, earned: 0, message: "Aún no tienes ningún vehículo VIP activo para generar rendimientos." };
+  }
+
+  // Rate limit: 24h cooldown to prevent duplicates
+  const cooldownLeft = getTimeLeftForDailyYield(phone);
+  if (cooldownLeft > 0) {
+    const hours = Math.floor(cooldownLeft / (1000 * 60 * 60));
+    const minutes = Math.floor((cooldownLeft % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((cooldownLeft % (1000 * 60)) / 1000);
+    return {
+      success: false,
+      earned: 0,
+      message: `Tus motores ya están en marcha para hoy. Espera ${hours}h ${minutes}m ${seconds}s para poner el garaje en marcha nuevamente y obtener nuevas ganancias.`
+    };
   }
 
   let totalEarned = 0;
@@ -804,8 +839,9 @@ export function claimDailyVehicleYields(phone: string): { success: boolean; earn
     }
   });
 
-  // Credit user available balance
+  // Credit user available balance & update last claim timestamp
   user.balance += totalEarned;
+  user.lastYieldClaimedAt = new Date().toISOString();
   state.users[phone] = user;
 
   // Log in history
