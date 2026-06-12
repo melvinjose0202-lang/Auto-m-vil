@@ -614,7 +614,13 @@ export function submitRecharge(
  * - Only 1 withdrawal per day
  * - Allowed from 1:00 PM to 6:00 PM (13:00 to 18:00) DR Time
  */
-export function submitWithdrawal(phone: string, amountStr: string): { error: string | null; request?: WithdrawRequest } {
+export function submitWithdrawal(
+  phone: string, 
+  amountStr: string,
+  bankName?: string,
+  accountNumber?: string,
+  accountOwner?: string
+): { error: string | null; request?: WithdrawRequest } {
   const amount = parseInt(amountStr, 10);
   if (isNaN(amount) || amount <= 0) {
     return { error: "Monto de retiro inválido." };
@@ -695,7 +701,10 @@ export function submitWithdrawal(phone: string, amountStr: string): { error: str
     netAmount,
     commission,
     status: 'pendiente',
-    date: new Date().toISOString()
+    date: new Date().toISOString(),
+    bankName,
+    accountNumber,
+    accountOwner
   };
 
   // Deduct user balance immediately to avoid double spend. If rejected, it will be refunded.
@@ -1177,4 +1186,107 @@ export function getReferralNetworkDetails(phone: string): {
     .reduce((acc, current) => acc + current.amount, 0);
 
   return { levelA, levelB, levelC, totalEarnings };
+}
+
+/**
+ * Admin: Update user balances explicitly (disponibles, recargas, retiros)
+ */
+export function updateUserBalances(
+  phone: string, 
+  balance: number, 
+  totalRecharged: number, 
+  totalWithdrawn: number
+): { error: string | null } {
+  const cleanPhone = normalizePhoneTo10Digits(phone);
+  const state = getDbState();
+  const user = state.users[cleanPhone];
+  if (!user) {
+    return { error: "Usuario no encontrado." };
+  }
+
+  user.balance = Number(balance);
+  user.totalRecharged = Number(totalRecharged);
+  user.totalWithdrawn = Number(totalWithdrawn);
+  
+  state.users[cleanPhone] = user;
+  saveDbState(state);
+
+  // Background sync
+  upsertUserToSupabase(user);
+
+  return { error: null };
+}
+
+/**
+ * Admin: Update user password
+ */
+export function updateUserPassword(phone: string, newPassword: string): { error: string | null } {
+  const cleanPhone = normalizePhoneTo10Digits(phone);
+  const state = getDbState();
+  const user = state.users[cleanPhone];
+  if (!user) {
+    return { error: "Usuario no encontrado." };
+  }
+
+  user.password = newPassword;
+  state.users[cleanPhone] = user;
+  saveDbState(state);
+
+  // Background sync
+  upsertUserToSupabase(user);
+
+  return { error: null };
+}
+
+/**
+ * Admin: Add or remove VIP levels
+ */
+export function updateUserVips(phone: string, vips: number[]): { error: string | null } {
+  const cleanPhone = normalizePhoneTo10Digits(phone);
+  const state = getDbState();
+  const user = state.users[cleanPhone];
+  if (!user) {
+    return { error: "Usuario no encontrado." };
+  }
+
+  // Ensure unique sorted list of numbers
+  user.vips = Array.from(new Set(vips)).map(Number).sort((a, b) => a - b);
+  state.users[cleanPhone] = user;
+  saveDbState(state);
+
+  // Background sync
+  upsertUserToSupabase(user);
+
+  return { error: null };
+}
+
+/**
+ * Admin: Permanently delete a user from the local state and Supabase
+ */
+export function deleteUserFromPlatform(phone: string): { error: string | null } {
+  const cleanPhone = normalizePhoneTo10Digits(phone);
+  const state = getDbState();
+  
+  if (!state.users[cleanPhone]) {
+    return { error: "Usuario no encontrado en la plataforma." };
+  }
+
+  // Delete from local memory mapping
+  delete state.users[cleanPhone];
+  
+  // Save local updates first
+  saveDbState(state);
+
+  // Execute deletion in remote DB asynchronously
+  if (supabase) {
+    supabase.from('users').delete().eq('phone', cleanPhone).then(({ error }) => {
+      if (error) {
+        console.error("Failed to delete user in Supabase:", error.message);
+      } else {
+        console.log(`[Sync] User ${cleanPhone} deleted from Supabase.`);
+      }
+    });
+  }
+
+  return { error: null };
 }

@@ -50,7 +50,7 @@ export default function Withdraw({ user, onUpdateUser }: WithdrawProps) {
       return;
     }
 
-    const res = submitWithdrawal(user.phone, amountStr);
+    const res = submitWithdrawal(user.phone, amountStr, bankName, accountNumber, accountOwner);
     if (res.error) {
       setError(res.error);
     } else if (res.request) {

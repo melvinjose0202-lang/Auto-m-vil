@@ -43,6 +43,9 @@ export interface WithdrawRequest {
   commission: number; // 12%
   status: 'pendiente' | 'completado' | 'cancelado';
   date: string;
+  bankName?: string;
+  accountNumber?: string;
+  accountOwner?: string;
 }
 
 export interface HistoryItem {

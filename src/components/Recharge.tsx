@@ -15,6 +15,7 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
   const [activeCategory, setActiveCategory] = useState<'banks' | 'crypto'>('banks');
   const [reference, setReference] = useState<string>("");
   const [receiptName, setReceiptName] = useState<string>("comprobante.jpg");
+  const [receiptUrl, setReceiptUrl] = useState<string>("");
   const [copied, setCopied] = useState<boolean>(false);
   
   const [error, setError] = useState<string | null>(null);
@@ -117,13 +118,29 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setReceiptName(e.dataTransfer.files[0].name);
+      const file = e.dataTransfer.files[0];
+      setReceiptName(file.name);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target && typeof event.target.result === 'string') {
+          setReceiptUrl(event.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setReceiptName(e.target.files[0].name);
+      const file = e.target.files[0];
+      setReceiptName(file.name);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target && typeof event.target.result === 'string') {
+          setReceiptUrl(event.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -132,12 +149,17 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
     setError(null);
     setSuccess(null);
 
+    if (!receiptUrl) {
+      setError("Por favor, sube una imagen, foto o captura de pantalla legible del comprobante para verificación administrativa.");
+      return;
+    }
+
     const res = submitRecharge(
       user.phone,
       amount,
       paymentMethod,
       reference,
-      "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&q=80&w=600", // Standard mock invoice receipt photo
+      receiptUrl,
       receiptName
     );
 
@@ -146,6 +168,8 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
     } else {
       setSuccess(`¡Tu reporte de recarga por RD$ ${amount.toLocaleString()} ha sido enviado correctamente! Nuestro equipo administrativo confirmará la transacción con el banco popular/banreserva/BHD o blockchain en unos minutos.`);
       setReference("");
+      setReceiptUrl("");
+      setReceiptName("comprobante.jpg");
       // Update local state
       const rawState = localStorage.getItem("autosport_state_db");
       if (rawState) {
@@ -438,8 +462,20 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
           </label>
 
           {receiptName && (
-            <div className="mt-3 text-[11px] bg-orange-500/10 border border-orange-500/20 text-orange-700 px-3 py-1 rounded-full font-mono font-bold flex items-center gap-1.5">
+            <div className="mt-3 text-[11px] bg-orange-500/10 border border-orange-500/20 text-orange-700 px-3 py-1 rounded-full font-mono font-bold flex items-center gap-1.5 justify-center">
               ✔️ {receiptName}
+            </div>
+          )}
+
+          {receiptUrl && receiptUrl.startsWith('data:') && (
+            <div className="mt-3.5 p-1 bg-white rounded-2xl border border-slate-200/60 shadow-sm flex flex-col items-center max-w-[220px]">
+              <img 
+                src={receiptUrl} 
+                alt="Vista previa" 
+                className="rounded-xl object-cover max-h-32 w-full"
+                referrerPolicy="no-referrer"
+              />
+              <span className="text-[9px] font-black uppercase text-orange-600 tracking-wider mt-1.5 select-none">Comprobante Cargado</span>
             </div>
           )}
         </div>

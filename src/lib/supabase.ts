@@ -193,7 +193,10 @@ function mapWithdrawalFromDB(row: any): WithdrawRequest {
     netAmount: Number(row.net_amount),
     commission: Number(row.commission),
     status: row.status as ('pendiente' | 'completado' | 'cancelado'),
-    date: row.date
+    date: row.date,
+    bankName: row.bank_name || undefined,
+    accountNumber: row.account_number || undefined,
+    accountOwner: row.account_owner || undefined
   };
 }
 
@@ -205,7 +208,10 @@ function mapWithdrawalToDB(req: WithdrawRequest) {
     net_amount: req.netAmount,
     commission: req.commission,
     status: req.status,
-    date: req.date
+    date: req.date,
+    bank_name: req.bankName || null,
+    account_number: req.accountNumber || null,
+    account_owner: req.accountOwner || null
   };
 }
 

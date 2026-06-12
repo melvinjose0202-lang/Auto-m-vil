@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, LogOut, CheckCircle2, XCircle, Landmark, Users, Coins, ArrowRightLeft, FileSpreadsheet, Search, RefreshCw, Smartphone, Copy, Check, Database, AlertTriangle, Gift, Award, TrendingUp, Code } from 'lucide-react';
 import { RechargeRequest, WithdrawRequest, User, HistoryItem } from '../types';
-import { getDbState, approveRechargeRequest, denyRechargeRequest, denyWithdrawalRequest, approveWithdrawalRequest, resetToDefaults } from '../lib/state';
+import { 
+  getDbState, 
+  approveRechargeRequest, 
+  denyRechargeRequest, 
+  denyWithdrawalRequest, 
+  approveWithdrawalRequest, 
+  resetToDefaults,
+  updateUserBalances,
+  updateUserPassword,
+  updateUserVips,
+  deleteUserFromPlatform
+} from '../lib/state';
 import { supabase } from '../lib/supabase';
 
 interface AdminPanelProps {
@@ -22,6 +33,21 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Copy helper state
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Lightbox Receipt Visualizer state
+  const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
+  const [selectedReceiptName, setSelectedReceiptName] = useState<string | null>(null);
+
+  // User Management State (Expanding/collapsible forms)
+  const [editingUserPhone, setEditingUserPhone] = useState<string | null>(null);
+  const [editBalance, setEditBalance] = useState<number>(0);
+  const [editTotalRecharged, setEditTotalRecharged] = useState<number>(0);
+  const [editTotalWithdrawn, setEditTotalWithdrawn] = useState<number>(0);
+  const [editPassword, setEditPassword] = useState<string>("");
+  const [editVips, setEditVips] = useState<number[]>([]);
 
   // Supabase live check states
   const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
@@ -265,6 +291,88 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
       resetToDefaults();
       loadAdminState();
       setSuccess("Toda la base de datos de simulación ha sido restaurada a los valores predeterminados.");
+    }
+  };
+
+  const handleStartEditingUser = (user: User) => {
+    if (editingUserPhone === user.phone) {
+      setEditingUserPhone(null);
+    } else {
+      setEditingUserPhone(user.phone);
+      setEditBalance(user.balance);
+      setEditTotalRecharged(user.totalRecharged);
+      setEditTotalWithdrawn(user.totalWithdrawn);
+      setEditPassword(user.password || "");
+      setEditVips(user.vips);
+      setError(null);
+      setSuccess(null);
+    }
+  };
+
+  const handleSaveUserBalances = (phone: string) => {
+    setError(null);
+    setSuccess(null);
+    const res = updateUserBalances(phone, editBalance, editTotalRecharged, editTotalWithdrawn);
+    if (res.error) {
+      setError(res.error);
+    } else {
+      setSuccess(`Los balances del piloto ${phone} fueron actualizados correctamente.`);
+      loadAdminState();
+    }
+  };
+
+  const handleSaveUserPassword = (phone: string) => {
+    setError(null);
+    setSuccess(null);
+    if (!editPassword.trim()) {
+      setError("La contraseña no puede estar vacía.");
+      return;
+    }
+    const res = updateUserPassword(phone, editPassword.trim());
+    if (res.error) {
+      setError(res.error);
+    } else {
+      setSuccess(`La contraseña de acceso del piloto ${phone} fue actualizada a "${editPassword.trim()}" con éxito.`);
+      loadAdminState();
+    }
+  };
+
+  const handleToggleVip = (phone: string, vipId: number) => {
+    setError(null);
+    setSuccess(null);
+    let updatedVips = [...editVips];
+    if (updatedVips.includes(vipId)) {
+      updatedVips = updatedVips.filter(v => v !== vipId);
+    } else {
+      updatedVips.push(vipId);
+    }
+    setEditVips(updatedVips);
+
+    const res = updateUserVips(phone, updatedVips);
+    if (res.error) {
+      setError(res.error);
+    } else {
+      setSuccess(`Suscripción VIP del piloto ${phone} actualizada con éxito.`);
+      loadAdminState();
+    }
+  };
+
+  const handleDeleteUser = (phone: string) => {
+    setError(null);
+    setSuccess(null);
+    if (phone === "8097617087") {
+      setError("Por medidas de seguridad, no puedes eliminar la cuenta raíz de administrador.");
+      return;
+    }
+    if (window.confirm(`⚠️ ADVERTENCIA CRÍTICA: ¿Estás seguro de que deseas eliminar permanentemente al piloto ${phone} de toda la plataforma? Esta acción borrará todas sus compras de vehículos, referidos, recargas, cobros y es irreversible.`)) {
+      const res = deleteUserFromPlatform(phone);
+      if (res.error) {
+        setError(res.error);
+      } else {
+        setSuccess(`El piloto ${phone} fue eliminado del sistema por completo.`);
+        setEditingUserPhone(null);
+        loadAdminState();
+      }
     }
   };
 
@@ -514,9 +622,24 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                             <td className="p-3 font-medium text-slate-600">{req.paymentMethod}</td>
                             <td className="p-3 font-mono text-xs">{req.reference}</td>
                             <td className="p-3">
-                              <span className="text-[10px] bg-slate-100 text-slate-600 font-semibold py-0.5 px-2 rounded font-mono border border-slate-200">
-                                🖼️ {req.receiptName}
-                              </span>
+                              <div className="flex flex-col gap-1 items-start">
+                                <span className="text-[10px] bg-slate-100 text-slate-650 font-semibold py-0.5 px-2 rounded font-mono border border-slate-200 truncate max-w-[130px]" title={req.receiptName}>
+                                  📄 {req.receiptName}
+                                </span>
+                                {req.receiptUrl ? (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedReceiptUrl(req.receiptUrl);
+                                      setSelectedReceiptName(`Recarga ${req.id} - Piloto ${req.phone}`);
+                                    }}
+                                    className="text-[9.5px] uppercase tracking-wider font-black text-orange-600 hover:text-orange-700 bg-orange-500/10 hover:bg-orange-500/15 px-2 py-0.5 rounded-md cursor-pointer border border-orange-200/50 transition whitespace-nowrap mt-1 flex items-center gap-1"
+                                  >
+                                    <span>👁️ Ver Imagen</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-[9px] text-slate-400 italic mt-0.5">Sin imagen</span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-3">
                               <span className={`text-[9.5px] uppercase font-black px-2.5 py-1 rounded-full ${req.status === 'pendiente' ? 'bg-amber-100 text-amber-800' : req.status === 'aprobado' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-105 text-red-800'}`}>
@@ -568,6 +691,9 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                   <tr>
                     <th className="p-3">ID Retiro</th>
                     <th className="p-3">Usuario (Tel)</th>
+                    <th className="p-3">Banco / Dirección</th>
+                    <th className="p-3">Número de Cuenta</th>
+                    <th className="p-3">Titular Registrado</th>
                     <th className="p-3">Monto Bruto</th>
                     <th className="p-3">Comisión (12%)</th>
                     <th className="p-3">A Recibir (Neto)</th>
@@ -579,19 +705,85 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                 <tbody className="divide-y divide-slate-100 font-mono text-slate-700">
                   {withdrawals.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-6 text-center text-slate-400 font-sans">No hay solicitudes de retiro registradas en esta simulación.</td>
+                      <td colSpan={11} className="p-6 text-center text-slate-400 font-sans">No hay solicitudes de retiro registradas en esta simulación.</td>
                     </tr>
                   ) : (
                     withdrawals.map((w) => (
                       <tr key={w.id} className="hover:bg-slate-50/50 font-sans">
                         <td className="p-3 font-mono font-bold text-slate-800">{w.id}</td>
                         <td className="p-3 font-mono font-bold text-slate-800">{w.phone}</td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5 font-sans">
+                            <span className="font-bold bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-[11px] border border-slate-200">
+                              {w.bankName || "Banco Popular"}
+                            </span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(w.bankName || "Banco Popular");
+                                setCopiedId(w.id + '_bank');
+                                setTimeout(() => setCopiedId(null), 2000);
+                              }}
+                              className="text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                              title="Copiar Banco"
+                            >
+                              {copiedId === w.id + '_bank' ? (
+                                <Check className="h-3 w-3 text-emerald-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5 font-mono">
+                            <span className="font-bold text-slate-900 bg-slate-50 border border-slate-150 px-2 py-0.5 rounded text-[11px]">
+                              {w.accountNumber || "123456789 (Ejemplo)"}
+                            </span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(w.accountNumber || "123456789");
+                                setCopiedId(w.id + '_acc');
+                                setTimeout(() => setCopiedId(null), 2000);
+                              }}
+                              className="text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                              title="Copiar Cuenta"
+                            >
+                              {copiedId === w.id + '_acc' ? (
+                                <Check className="h-3 w-3 text-emerald-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5 font-sans">
+                            <span className="text-slate-750 font-semibold text-xs text-left block">
+                              {w.accountOwner || "Piloto Dominicano"}
+                            </span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(w.accountOwner || "Piloto Dominicano");
+                                setCopiedId(w.id + '_own');
+                                setTimeout(() => setCopiedId(null), 2000);
+                              }}
+                              className="text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                              title="Copiar Titular"
+                            >
+                              {copiedId === w.id + '_own' ? (
+                                <Check className="h-3 w-3 text-emerald-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
                         <td className="p-3 font-mono font-bold">RD$ {w.amount}</td>
                         <td className="p-3 font-mono text-red-650 font-semibold">-RD$ {w.commission}</td>
                         <td className="p-3 font-mono text-emerald-650 font-black">RD$ {w.netAmount}</td>
                         <td className="p-3 font-mono text-[11px]">{new Date(w.date).toLocaleString('es-DO')}</td>
                         <td className="p-3">
-                          <span className={`text-[9.5px] uppercase font-black px-2.5 py-1 rounded-full ${w.status === 'pendiente' ? 'bg-amber-100 text-amber-800' : w.status === 'completado' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                          <span className={`text-[9.5px] uppercase font-black px-2.5 py-1 rounded-full ${w.status === 'pendiente' ? 'bg-amber-100 text-amber-800' : w.status === 'completado' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-105 text-red-000'}`}>
                             {w.status}
                           </span>
                         </td>
@@ -600,19 +792,19 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                             <div className="flex gap-2 justify-end">
                               <button
                                 onClick={() => handleDenyWithdrawal(w.id)}
-                                className="py-1.5 px-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold text-[10px] rounded-lg cursor-pointer uppercase tracking-wider"
+                                className="py-1.5 px-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold text-[10px] rounded-lg cursor-pointer uppercase tracking-wider whitespace-nowrap"
                               >
                                 Cancelar / Reembolsar
                               </button>
                               <button
                                 onClick={() => handleApproveWithdrawal(w.id)}
-                                className="py-1.5 px-3 bg-emerald-650 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg cursor-pointer uppercase tracking-wider shadow-sm"
+                                className="py-1.5 px-3 bg-emerald-650 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg cursor-pointer uppercase tracking-wider shadow-sm whitespace-nowrap"
                               >
                                 Completar Pago
                               </button>
                             </div>
                           ) : (
-                            <span className="text-[10.5px] font-semibold text-slate-400 capitalize">Completado</span>
+                            <span className="text-[10.5px] font-semibold text-slate-400 capitalize whitespace-nowrap">Procesado</span>
                           )}
                         </td>
                       </tr>
@@ -659,27 +851,170 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                     <th className="p-3">Total Recargado</th>
                     <th className="p-3">Total Retirado</th>
                     <th className="p-3">Fecha Ingreso</th>
+                    <th className="p-3 text-right">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-mono text-slate-755 text-xs">
                   {users
                     .filter(u => !userSearch || u.phone.includes(userSearch))
-                    .map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/40">
-                        <td className="p-3 font-semibold text-slate-900">{item.phone}</td>
-                        <td className="p-3 text-slate-400">{item.password || "Servicio Externo"}</td>
-                        <td className="p-3 font-bold text-slate-850">RD$ {item.balance.toLocaleString('es-DO', {minimumFractionDigits: 1})}</td>
-                        <td className="p-3 text-slate-500">{item.referredBy || "- Directo -"}</td>
-                        <td className="p-3 font-sans">
-                          <span className="bg-orange-50 text-orange-650 font-bold px-2 py-0.5 rounded text-[10px] border border-orange-100">
-                            {item.vips.length > 0 ? `VIP ${item.vips.join(', ')}` : 'Sin VIP'}
-                          </span>
-                        </td>
-                        <td className="p-3 text-emerald-650 font-bold">RD$ {item.totalRecharged}</td>
-                        <td className="p-3 text-red-650 font-bold">RD$ {item.totalWithdrawn}</td>
-                        <td className="p-3 text-slate-400 font-sans">{new Date(item.registeredAt).toLocaleDateString()}</td>
-                      </tr>
-                    ))}
+                    .map((item, idx) => {
+                      const isExpanded = editingUserPhone === item.phone;
+                      return (
+                        <React.Fragment key={idx}>
+                          <tr className={`hover:bg-slate-50/40 transition-colors ${isExpanded ? 'bg-orange-50/30' : ''}`}>
+                            <td className="p-3 font-semibold text-slate-900">{item.phone}</td>
+                            <td className="p-3 text-slate-400">
+                              <span className="bg-slate-100 hover:bg-slate-200 text-slate-750 font-semibold px-2 py-0.5 rounded cursor-pointer transition select-none tracking-tight" onClick={() => handleStartEditingUser(item)}>
+                                {isExpanded ? "👁️ " + (item.password || "OAuth") : "🔐 Ver clave"}
+                              </span>
+                            </td>
+                            <td className="p-3 font-bold text-slate-850">RD$ {item.balance.toLocaleString('es-DO', {minimumFractionDigits: 1})}</td>
+                            <td className="p-3 text-slate-500">{item.referredBy || "- Directo -"}</td>
+                            <td className="p-3 font-sans">
+                              <span className="bg-orange-50 text-orange-650 font-bold px-2 py-0.5 rounded text-[10px] border border-orange-100 uppercase tracking-tight">
+                                {item.vips.length > 0 ? `VIP ${item.vips.join(', ')}` : 'Sin VIP'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-emerald-650 font-bold">RD$ {item.totalRecharged}</td>
+                            <td className="p-3 text-red-650 font-bold">RD$ {item.totalWithdrawn}</td>
+                            <td className="p-3 text-slate-400 font-sans">{new Date(item.registeredAt).toLocaleDateString()}</td>
+                            <td className="p-3 text-right">
+                              <button
+                                onClick={() => handleStartEditingUser(item)}
+                                className={`px-3 py-1.5 uppercase font-bold text-[9.5px] rounded-lg tracking-wider border cursor-pointer select-none transition ${isExpanded ? 'bg-orange-600 text-white border-orange-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'}`}
+                              >
+                                {isExpanded ? 'Cerrar' : 'Gestionar'}
+                              </button>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr>
+                              <td colSpan={9} className="p-5 bg-slate-50/80 border-t border-b border-orange-100/50">
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 text-left font-sans text-slate-705">
+                                  
+                                  {/* BLOCK 1: MODIFY BALANCES */}
+                                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                                    <h4 className="text-[11px] font-black uppercase text-slate-800 border-b pb-1.5 flex items-center gap-1.5">
+                                      <Coins className="h-4 w-4 text-orange-600" />
+                                      Modificar Balances de Cuenta
+                                    </h4>
+                                    <div className="space-y-2.5">
+                                      <div>
+                                        <span className="text-[9.5px] font-bold text-slate-450 uppercase block tracking-wider">Saldo Disponible / Retiro (RD$)</span>
+                                        <input
+                                          type="number"
+                                          className="w-full mt-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                          value={editBalance}
+                                          onChange={(e) => setEditBalance(Number(e.target.value))}
+                                        />
+                                      </div>
+                                      <div>
+                                        <span className="text-[9.5px] font-bold text-slate-450 uppercase block tracking-wider">Capital Invertido / Recargas (RD$)</span>
+                                        <input
+                                          type="number"
+                                          className="w-full mt-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                          value={editTotalRecharged}
+                                          onChange={(e) => setEditTotalRecharged(Number(e.target.value))}
+                                        />
+                                      </div>
+                                      <div>
+                                        <span className="text-[9.5px] font-bold text-slate-455 uppercase block tracking-wider">Retiros Acumulados (RD$)</span>
+                                        <input
+                                          type="number"
+                                          className="w-full mt-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                          value={editTotalWithdrawn}
+                                          onChange={(e) => setEditTotalWithdrawn(Number(e.target.value))}
+                                        />
+                                      </div>
+                                      <button
+                                        onClick={() => handleSaveUserBalances(item.phone)}
+                                        className="w-full mt-1 py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl cursor-pointer shadow-sm transition"
+                                      >
+                                        Guardar Balances
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* BLOCK 2: VIEW AND EDIT PASSWORD */}
+                                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3 flex flex-col justify-between">
+                                    <div className="space-y-3">
+                                      <h4 className="text-[11px] font-black uppercase text-slate-800 border-b pb-1.5 flex items-center gap-1.5">
+                                        <ShieldCheck className="h-4 w-4 text-orange-600" />
+                                        Clave del Piloto
+                                      </h4>
+                                      <div className="p-3 bg-slate-50 border border-slate-150 rounded-2xl flex items-center justify-between">
+                                        <span className="text-[9.5px] font-bold text-slate-450 uppercase tracking-wide">Clave actual:</span>
+                                        <span className="text-xs font-mono font-black text-slate-900 px-2.5 py-1 bg-white border rounded-lg shadow-sm">
+                                          {item.password || "OAuth (Sin clave)"}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-[9.5px] font-bold text-slate-450 uppercase block tracking-wider">Modificar Contraseña</span>
+                                        <input
+                                          type="text"
+                                          placeholder="Escribe la clave de reemplazo..."
+                                          className="w-full mt-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-sans font-bold focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                          value={editPassword}
+                                          onChange={(e) => setEditPassword(e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => handleSaveUserPassword(item.phone)}
+                                      className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl cursor-pointer shadow-sm transition"
+                                    >
+                                      Establecer Nueva Clave
+                                    </button>
+                                  </div>
+
+                                  {/* BLOCK 3: REGALAR / QUITAR VIPS */}
+                                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3 flex flex-col justify-between">
+                                    <div className="space-y-2">
+                                      <h4 className="text-[11px] font-black uppercase text-slate-800 border-b pb-1.5 flex items-center gap-1.5">
+                                        <Gift className="h-4 w-4 text-orange-600" />
+                                        Membresías VIP (Regalar / Quitar)
+                                      </h4>
+                                      <p className="text-[10px] text-slate-400 font-medium leading-normal">
+                                        Asigna o revoca accesos VIP instantáneamente. Se desbloqueará la plataforma del usuario al instante.
+                                      </p>
+                                      
+                                      <div className="grid grid-cols-3 gap-1.5 pt-1.5">
+                                        {[1, 2, 3, 4, 5, 6].map((vipId) => {
+                                          const isAssigned = editVips.includes(vipId);
+                                          return (
+                                            <button
+                                              key={vipId}
+                                              onClick={() => handleToggleVip(item.phone, vipId)}
+                                              className={`py-1.5 rounded-xl font-bold font-sans text-[10px] uppercase transition cursor-pointer select-none text-center border flex flex-col items-center justify-center ${isAssigned ? 'bg-orange-600 text-white border-orange-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                                            >
+                                              <span>VIP {vipId}</span>
+                                              <span className={`text-[8px] font-normal tracking-wide ${isAssigned ? 'text-orange-100' : 'text-slate-400'}`}>
+                                                {isAssigned ? 'Activo' : 'Inactivo'}
+                                              </span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+
+                                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between mt-3">
+                                      <span className="text-[9.5px] text-slate-400 font-black uppercase tracking-wider">Sanción de Cuenta:</span>
+                                      <button
+                                        onClick={() => handleDeleteUser(item.phone)}
+                                        className="py-1.5 px-3 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold text-[9.5px] uppercase tracking-wider rounded-lg cursor-pointer transition"
+                                      >
+                                        Eliminar de Plataforma
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
@@ -899,6 +1234,52 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
         </div>
 
       </main>
+
+      {/* Lightbox / Modal for viewing receipts */}
+      {selectedReceiptUrl && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-100 flex flex-col max-h-[90vh]">
+            <button 
+              onClick={() => {
+                setSelectedReceiptUrl(null);
+                setSelectedReceiptName(null);
+              }}
+              className="absolute top-4 right-4 h-8 w-8 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-full flex items-center justify-center text-slate-800 font-bold cursor-pointer transition select-none text-xs"
+              title="Cerrar"
+            >
+              ✕
+            </button>
+            <div className="flex flex-col mb-4">
+              <span className="text-[9px] bg-orange-500/10 text-orange-600 font-extrabold uppercase px-2.5 py-1 rounded-full w-fit tracking-wider mb-1">
+                Verificación de Depósito
+              </span>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">
+                {selectedReceiptName || 'Comprobante de Pago'}
+              </h3>
+            </div>
+            <div className="flex-1 overflow-auto rounded-2xl bg-slate-50 border border-slate-150 p-2 flex items-center justify-center">
+              <img 
+                src={selectedReceiptUrl} 
+                alt="Comprobante de depósito" 
+                className="max-h-[55vh] w-auto max-w-full object-contain rounded-xl shadow-sm border"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div className="mt-5 pt-3 border-t border-slate-100 flex justify-between items-center">
+              <p className="text-[10px] text-slate-400 font-medium">Verifica la referencia y el monto correspondiente.</p>
+              <button
+                onClick={() => {
+                  setSelectedReceiptUrl(null);
+                  setSelectedReceiptName(null);
+                }}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl cursor-pointer transition shadow-sm select-none"
+              >
+                Cerrar Comprobante
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
