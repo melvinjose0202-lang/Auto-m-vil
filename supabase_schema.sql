@@ -18,10 +18,6 @@ CREATE TABLE IF NOT EXISTS public.users (
     CONSTRAINT chk_no_self_referral CHECK (referred_by <> phone)
 );
 
--- Desactivar Row Level Security (RLS) para evitar bloqueos en prototipos rápidos 
--- u optar por habilitarla si tienes tokens personalizados.
-ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
-
 -- 2. Tabla de Conexión de Referidos (Estructura y Auditoría)
 CREATE TABLE IF NOT EXISTS public.referrals (
     id text PRIMARY KEY,
@@ -31,8 +27,6 @@ CREATE TABLE IF NOT EXISTS public.referrals (
     date text,
     CONSTRAINT chk_diff_phones CHECK (referrer_phone <> referred_phone)
 );
-
-ALTER TABLE public.referrals DISABLE ROW LEVEL SECURITY;
 
 -- 3. Tabla de Recargas (Anti-Hacks: Montos positivos e inmutabilidad en transacciones finalizadas)
 CREATE TABLE IF NOT EXISTS public.recharges (
@@ -47,8 +41,6 @@ CREATE TABLE IF NOT EXISTS public.recharges (
     date text
 );
 
-ALTER TABLE public.recharges DISABLE ROW LEVEL SECURITY;
-
 -- 4. Tabla de Retiros (Con comisión válida y montos limpios)
 CREATE TABLE IF NOT EXISTS public.withdrawals (
     id text PRIMARY KEY,
@@ -60,8 +52,6 @@ CREATE TABLE IF NOT EXISTS public.withdrawals (
     date text
 );
 
-ALTER TABLE public.withdrawals DISABLE ROW LEVEL SECURITY;
-
 -- 5. Tabla de Historial Contable (Previene registros maliciosos)
 CREATE TABLE IF NOT EXISTS public.history (
     id text PRIMARY KEY,
@@ -72,7 +62,41 @@ CREATE TABLE IF NOT EXISTS public.history (
     date text
 );
 
-ALTER TABLE public.history DISABLE ROW LEVEL SECURITY;
+-- =====================================================================
+-- CONFIGURACIÓN DE SEGURIDAD RLS (POLÍTICAS COMPATIBLES CON CLIENTE HÍBRIDO)
+-- =====================================================================
+
+-- Habilitación explícita de RLS en todas las tablas primarias
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recharges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.history ENABLE ROW LEVEL SECURITY;
+
+-- 1. Políticas de Selección (SELECT - Permite lecturas de datos filtrados por el cliente)
+CREATE POLICY "Permitir lectura general de usuarios" ON public.users FOR SELECT USING (true);
+CREATE POLICY "Permitir lectura general de referidos" ON public.referrals FOR SELECT USING (true);
+CREATE POLICY "Permitir lectura general de recargas" ON public.recharges FOR SELECT USING (true);
+CREATE POLICY "Permitir lectura general de retiros" ON public.withdrawals FOR SELECT USING (true);
+CREATE POLICY "Permitir lectura general de historial" ON public.history FOR SELECT USING (true);
+
+-- 2. Políticas de Creación (INSERT - Permite registros y envío de solicitudes de recarga/retiro)
+CREATE POLICY "Permitir registro público de usuarios" ON public.users FOR INSERT WITH CHECK (true);
+CREATE POLICY "Permitir logueo de referidos legítimo" ON public.referrals FOR INSERT WITH CHECK (true);
+CREATE POLICY "Permitir envío de solicitudes de recarga" ON public.recharges FOR INSERT WITH CHECK (true);
+CREATE POLICY "Permitir envío de solicitudes de retiro" ON public.withdrawals FOR INSERT WITH CHECK (true);
+CREATE POLICY "Permitir registro de entradas contables" ON public.history FOR INSERT WITH CHECK (true);
+
+-- 3. Políticas de Modificación (UPDATE - Garantiza actualizaciones mutuas bajo lógica de triggers)
+CREATE POLICY "Permitir actualizaciones de usuarios" ON public.users FOR UPDATE USING (true);
+CREATE POLICY "Permitir actualizaciones de referidos" ON public.referrals FOR UPDATE USING (true);
+CREATE POLICY "Permitir aprobación o denegación de recargas" ON public.recharges FOR UPDATE USING (true);
+CREATE POLICY "Permitir procesamiento de retiros" ON public.withdrawals FOR UPDATE USING (true);
+CREATE POLICY "Permitir corrección de historial" ON public.history FOR UPDATE USING (true);
+
+-- =====================================================================
+-- Índices para búsqueda ultra rápida (Previene ataques de DDoS por consultas pesadas)
+-- =====================================================================
 
 
 -- =====================================================================

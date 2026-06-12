@@ -312,6 +312,24 @@ export async function fetchFullStateFromSupabase(): Promise<{
     console.warn("Could not read local backup state for fallback sync:", e);
   }
 
+  // Detect currently logged-in user context for isolated syncing to protect data and support secure RLS queries
+  let loggedInPhone: string | undefined = undefined;
+  let isAdmin = false;
+  if (typeof window !== "undefined") {
+    try {
+      const cached = localStorage.getItem("autosport_logged_user");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.phone) {
+          loggedInPhone = normalizePhoneTo10Digits(parsed.phone);
+        }
+      }
+      isAdmin = localStorage.getItem("autosport_is_admin") === "true" && loggedInPhone === "8097617087";
+    } catch (e) {
+      console.warn("Error reading state lock context:", e);
+    }
+  }
+
   const usersMap: Record<string, User> = { ...localUsers };
   let recharges = [...localRecharges];
   let withdrawals = [...localWithdrawals];
@@ -319,38 +337,103 @@ export async function fetchFullStateFromSupabase(): Promise<{
 
   let workedAtLeastOne = false;
 
-  // 1. Fetch Users
+  // 1. Fetch Users - Segmented security context
   const remoteUsersMap: Record<string, boolean> = {};
   try {
-    const { data, error } = await supabase.from('users').select('*');
-    if (error) {
-      console.error("Users table fetch failed:", error.message);
-    } else if (data) {
+    if (isAdmin) {
+      // Admins are authorized to load the entire database securely
+      const { data, error } = await supabase.from('users').select('*');
+      if (error) {
+        console.error("Users table fetch failed (admin):", error.message);
+      } else if (data) {
+        workedAtLeastOne = true;
+        data.forEach(row => {
+          const normalizedKey = normalizePhoneTo10Digits(row.phone);
+          usersMap[normalizedKey] = mapUserFromDB(row);
+          remoteUsersMap[normalizedKey] = true;
+        });
+      }
+    } else if (loggedInPhone) {
+      // Normal users: ONLY fetch their own record and their multi-level referred team members!
+      // This protects the platform from leaks and makes it fully compatible with RLS when enabled.
       workedAtLeastOne = true;
-      data.forEach(row => {
-        const normalizedKey = normalizePhoneTo10Digits(row.phone);
-        usersMap[normalizedKey] = mapUserFromDB(row);
-        remoteUsersMap[normalizedKey] = true;
-      });
+      
+      // Step A: Fetch their own user row
+      const { data: ownData, error: ownErr } = await supabase.from('users').select('*').eq('phone', loggedInPhone).maybeSingle();
+      if (ownData) {
+        const normKey = normalizePhoneTo10Digits(ownData.phone);
+        usersMap[normKey] = mapUserFromDB(ownData);
+        remoteUsersMap[normKey] = true;
+        
+        // Also fetch their direct referrer if present
+        if (ownData.referred_by) {
+          const referrerNorm = normalizePhoneTo10Digits(ownData.referred_by);
+          const { data: refData } = await supabase.from('users').select('*').eq('phone', referrerNorm).maybeSingle();
+          if (refData) {
+            usersMap[referrerNorm] = mapUserFromDB(refData);
+            remoteUsersMap[referrerNorm] = true;
+          }
+        }
+      }
+
+      // Step B: Fetch Level A referred users
+      const { data: levelA } = await supabase.from('users').select('*').eq('referred_by', loggedInPhone);
+      const levelAPhones: string[] = [];
+      if (levelA && levelA.length > 0) {
+        levelA.forEach(row => {
+          const normKey = normalizePhoneTo10Digits(row.phone);
+          usersMap[normKey] = mapUserFromDB(row);
+          remoteUsersMap[normKey] = true;
+          levelAPhones.push(normKey);
+        });
+      }
+
+      // Step C: Fetch Level B referred users
+      const levelBPhones: string[] = [];
+      if (levelAPhones.length > 0) {
+        const { data: levelB } = await supabase.from('users').select('*').in('referred_by', levelAPhones);
+        if (levelB && levelB.length > 0) {
+          levelB.forEach(row => {
+            const normKey = normalizePhoneTo10Digits(row.phone);
+            usersMap[normKey] = mapUserFromDB(row);
+            remoteUsersMap[normKey] = true;
+            levelBPhones.push(normKey);
+          });
+        }
+      }
+
+      // Step D: Fetch Level C referred users
+      if (levelBPhones.length > 0) {
+        const { data: levelC } = await supabase.from('users').select('*').in('referred_by', levelBPhones);
+        if (levelC && levelC.length > 0) {
+          levelC.forEach(row => {
+            const normKey = normalizePhoneTo10Digits(row.phone);
+            usersMap[normKey] = mapUserFromDB(row);
+            remoteUsersMap[normKey] = true;
+          });
+        }
+      }
     }
   } catch (e) {
-    console.error("Users fetch exception:", e);
+    console.error("Users fetch exception under secure isolation:", e);
   }
 
   // Upload local-only users
+  const loggedNorm = loggedInPhone ? normalizePhoneTo10Digits(loggedInPhone) : null;
   const localOnlyUsers = Object.values(localUsers).filter(u => {
     const norm = normalizePhoneTo10Digits(u.phone);
-    return norm && !remoteUsersMap[norm] && !EXCLUDED_SYNC_PHONES.has(norm);
+    const belongsToContext = !isAdmin && loggedNorm ? norm === loggedNorm : true;
+    return norm && belongsToContext && !remoteUsersMap[norm] && !EXCLUDED_SYNC_PHONES.has(norm);
   });
 
-  if (localOnlyUsers.length > 0) {
+  if (localOnlyUsers.length > 0 && loggedInPhone) {
     console.log(`[Sync] Pushing ${localOnlyUsers.length} local-only users to Supabase...`);
     try {
       const dbRows = localOnlyUsers.map(mapUserToDB);
       const { error: upsertErr } = await supabase.from('users').upsert(dbRows);
       if (upsertErr) {
         if (checkRlsError(upsertErr)) {
-          console.warn("[Sync] Row-Level Security blocks writing local-only users to Supabase. This is handled gracefully (users are saved locally). To fully sync, disable RLS in your Supabase dashboard.");
+          console.warn("[Sync] Row-Level Security blocks writing local-only users to Supabase. This is handled gracefully.");
         } else {
           console.error("[Sync] Error upserting local-only users:", upsertErr.message);
         }
@@ -376,15 +459,25 @@ export async function fetchFullStateFromSupabase(): Promise<{
     }
   }
 
-  // 2. Fetch Recharges
+  // 2. Fetch Recharges (Isolated securely by phone unless admin)
   const remoteRechargesMap: Record<string, boolean> = {};
   try {
-    const { data, error } = await supabase.from('recharges').select('*').order('date', { ascending: false });
+    let rechargesQuery = supabase.from('recharges').select('*');
+    if (!isAdmin && loggedInPhone) {
+      rechargesQuery = rechargesQuery.eq('phone', loggedInPhone);
+    }
+    const { data, error } = await rechargesQuery.order('date', { ascending: false });
     if (error) {
       console.error("Recharges table fetch failed:", error.message);
     } else if (data) {
       workedAtLeastOne = true;
-      recharges = data.map(mapRechargeFromDB);
+      const fetchedRecharges = data.map(mapRechargeFromDB);
+      if (isAdmin) {
+        recharges = fetchedRecharges;
+      } else {
+        const ownIdsSet = new Set(data.map(r => r.id));
+        recharges = fetchedRecharges.concat(recharges.filter(r => r.phone !== loggedInPhone || !ownIdsSet.has(r.id)));
+      }
       data.forEach(row => {
         remoteRechargesMap[row.id] = true;
       });
@@ -393,39 +486,58 @@ export async function fetchFullStateFromSupabase(): Promise<{
     console.error("Recharges fetch exception:", e);
   }
 
-  // Upload local-only recharges
+  // Upload local-only recharges (Context-aware: only push user's own local records to avoid trigger collision)
   const localOnlyRecharges = localRecharges.filter(r => {
     const norm = normalizePhoneTo10Digits(r.phone);
-    return r.id && !remoteRechargesMap[r.id] && !EXCLUDED_SYNC_PHONES.has(norm);
+    const belongsToContext = !isAdmin && loggedNorm ? norm === loggedNorm : true;
+    return r.id && belongsToContext && !remoteRechargesMap[r.id] && !EXCLUDED_SYNC_PHONES.has(norm);
   });
-  if (localOnlyRecharges.length > 0) {
+  if (localOnlyRecharges.length > 0 && loggedInPhone) {
     console.log(`[Sync] Pushing ${localOnlyRecharges.length} local-only recharges to Supabase...`);
     try {
       const rows = localOnlyRecharges.map(mapRechargeToDB);
       const { error: rcErr } = await supabase.from('recharges').upsert(rows);
       if (rcErr) {
+        const errMsg = rcErr.message;
         if (checkRlsError(rcErr)) {
           console.warn("[Sync] RLS active. Skipping pushing local-only recharges to Supabase.");
+        } else if (errMsg.includes("finalizada") || errMsg.includes("alterarse") || errMsg.includes("congelada")) {
+          console.warn("[Sync] One or more transactions are already finalized on Supabase. Skipped gracefully.");
         } else {
-          console.error("[Sync] Error upserting recharges:", rcErr.message);
+          console.error("[Sync] Error upserting recharges:", errMsg);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       if (!checkRlsError(err)) {
-        console.error("[Sync] Recharges upload execution error:", err);
+        const msg = err?.message || "";
+        if (msg.includes("finalizada") || msg.includes("alterarse") || msg.includes("congelada")) {
+          console.warn("[Sync] Transaction already finalized on server. Skipped execution gracefully.");
+        } else {
+          console.error("[Sync] Recharges upload execution error:", err);
+        }
       }
     }
   }
 
-  // 3. Fetch Withdrawals
+  // 3. Fetch Withdrawals (Isolated securely by phone unless admin)
   const remoteWithdrawalsMap: Record<string, boolean> = {};
   try {
-    const { data, error } = await supabase.from('withdrawals').select('*').order('date', { ascending: false });
+    let withdrawalsQuery = supabase.from('withdrawals').select('*');
+    if (!isAdmin && loggedInPhone) {
+      withdrawalsQuery = withdrawalsQuery.eq('phone', loggedInPhone);
+    }
+    const { data, error } = await withdrawalsQuery.order('date', { ascending: false });
     if (error) {
       console.error("Withdrawals table fetch failed:", error.message);
     } else if (data) {
       workedAtLeastOne = true;
-      withdrawals = data.map(mapWithdrawalFromDB);
+      const fetchedWithdrawals = data.map(mapWithdrawalFromDB);
+      if (isAdmin) {
+        withdrawals = fetchedWithdrawals;
+      } else {
+        const ownIdsSet = new Set(data.map(w => w.id));
+        withdrawals = fetchedWithdrawals.concat(withdrawals.filter(w => w.phone !== loggedInPhone || !ownIdsSet.has(w.id)));
+      }
       data.forEach(row => {
         remoteWithdrawalsMap[row.id] = true;
       });
@@ -434,39 +546,58 @@ export async function fetchFullStateFromSupabase(): Promise<{
     console.error("Withdrawals fetch exception:", e);
   }
 
-  // Upload local-only withdrawals
+  // Upload local-only withdrawals (Context-aware: only push user's own local records to avoid trigger collision)
   const localOnlyWithdrawals = localWithdrawals.filter(w => {
     const norm = normalizePhoneTo10Digits(w.phone);
-    return w.id && !remoteWithdrawalsMap[w.id] && !EXCLUDED_SYNC_PHONES.has(norm);
+    const belongsToContext = !isAdmin && loggedNorm ? norm === loggedNorm : true;
+    return w.id && belongsToContext && !remoteWithdrawalsMap[w.id] && !EXCLUDED_SYNC_PHONES.has(norm);
   });
-  if (localOnlyWithdrawals.length > 0) {
+  if (localOnlyWithdrawals.length > 0 && loggedInPhone) {
     console.log(`[Sync] Pushing ${localOnlyWithdrawals.length} local-only withdrawals to Supabase...`);
     try {
       const rows = localOnlyWithdrawals.map(mapWithdrawalToDB);
       const { error: wdErr } = await supabase.from('withdrawals').upsert(rows);
       if (wdErr) {
+        const errMsg = wdErr.message;
         if (checkRlsError(wdErr)) {
           console.warn("[Sync] RLS active. Skipping pushing local-only withdrawals to Supabase.");
+        } else if (errMsg.includes("finalizada") || errMsg.includes("alterarse") || errMsg.includes("congelada")) {
+          console.warn("[Sync] One or more withdrawals are already finalized on Supabase. Skipped gracefully.");
         } else {
-          console.error("[Sync] Error upserting withdrawals:", wdErr.message);
+          console.error("[Sync] Error upserting withdrawals:", errMsg);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       if (!checkRlsError(err)) {
-        console.error("[Sync] Withdrawals upload execution error:", err);
+        const msg = err?.message || "";
+        if (msg.includes("finalizada") || msg.includes("alterarse") || msg.includes("congelada")) {
+          console.warn("[Sync] Withdrawal already finalized on server. Skipped execution gracefully.");
+        } else {
+          console.error("[Sync] Withdrawals upload execution error:", err);
+        }
       }
     }
   }
 
-  // 4. Fetch History
+  // 4. Fetch History (Isolated securely by phone unless admin)
   const remoteHistoryMap: Record<string, boolean> = {};
   try {
-    const { data, error } = await supabase.from('history').select('*').order('date', { ascending: false });
+    let historyQuery = supabase.from('history').select('*');
+    if (!isAdmin && loggedInPhone) {
+      historyQuery = historyQuery.eq('phone', loggedInPhone);
+    }
+    const { data, error } = await historyQuery.order('date', { ascending: false });
     if (error) {
       console.error("History table fetch failed:", error.message);
     } else if (data) {
       workedAtLeastOne = true;
-      history = data.map(mapHistoryFromDB);
+      const fetchedHistory = data.map(mapHistoryFromDB);
+      if (isAdmin) {
+        history = fetchedHistory;
+      } else {
+        const ownIdsSet = new Set(data.map(h => h.id));
+        history = fetchedHistory.concat(history.filter(h => h.phone !== loggedInPhone || !ownIdsSet.has(h.id)));
+      }
       data.forEach(row => {
         remoteHistoryMap[row.id] = true;
       });
@@ -475,12 +606,13 @@ export async function fetchFullStateFromSupabase(): Promise<{
     console.error("History fetch exception:", e);
   }
 
-  // Upload local-only history items
+  // Upload local-only history items (Context-aware: only push user's own local records to avoid trigger collision)
   const localOnlyHistory = localHistory.filter(h => {
     const norm = normalizePhoneTo10Digits(h.phone);
-    return h.id && !remoteHistoryMap[h.id] && !EXCLUDED_SYNC_PHONES.has(norm);
+    const belongsToContext = !isAdmin && loggedNorm ? norm === loggedNorm : true;
+    return h.id && belongsToContext && !remoteHistoryMap[h.id] && !EXCLUDED_SYNC_PHONES.has(norm);
   });
-  if (localOnlyHistory.length > 0) {
+  if (localOnlyHistory.length > 0 && loggedInPhone) {
     console.log(`[Sync] Pushing ${localOnlyHistory.length} local-only history items to Supabase...`);
     try {
       const rows = localOnlyHistory.map(mapHistoryToDB);

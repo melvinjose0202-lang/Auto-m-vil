@@ -49,7 +49,6 @@ CREATE TABLE IF NOT EXISTS public.users (
     status text DEFAULT 'active' CONSTRAINT chk_valid_status CHECK (status IN ('active', 'suspended')),
     CONSTRAINT chk_no_self_referral CHECK (referred_by <> phone)
 );
-ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 
 -- 2. Tabla de Conexión de Referidos (Estructura y Auditoría)
 CREATE TABLE IF NOT EXISTS public.referrals (
@@ -60,7 +59,6 @@ CREATE TABLE IF NOT EXISTS public.referrals (
     date text,
     CONSTRAINT chk_diff_phones CHECK (referrer_phone <> referred_phone)
 );
-ALTER TABLE public.referrals DISABLE ROW LEVEL SECURITY;
 
 -- 3. Tabla de Recargas (Anti-Hacks: Montos positivos e inmutabilidad en transacciones finalizadas)
 CREATE TABLE IF NOT EXISTS public.recharges (
@@ -74,7 +72,6 @@ CREATE TABLE IF NOT EXISTS public.recharges (
     status text DEFAULT 'pendiente' CONSTRAINT chk_recharge_status CHECK (status IN ('pendiente', 'aprobado', 'denegado')),
     date text
 );
-ALTER TABLE public.recharges DISABLE ROW LEVEL SECURITY;
 
 -- 4. Tabla de Retiros (Con comisión válida y montos limpios)
 CREATE TABLE IF NOT EXISTS public.withdrawals (
@@ -86,7 +83,6 @@ CREATE TABLE IF NOT EXISTS public.withdrawals (
     status text DEFAULT 'pendiente' CONSTRAINT chk_withdrawal_status CHECK (status IN ('pendiente', 'completado', 'cancelado')),
     date text
 );
-ALTER TABLE public.withdrawals DISABLE ROW LEVEL SECURITY;
 
 -- 5. Tabla de Historial Contable (Previene registros maliciosos)
 CREATE TABLE IF NOT EXISTS public.history (
@@ -97,14 +93,48 @@ CREATE TABLE IF NOT EXISTS public.history (
     description text,
     date text
 );
-ALTER TABLE public.history DISABLE ROW LEVEL SECURITY;
 
--- Triggers de Bloqueo Inmutable (Anti-Doble Gasto / Hacks)
+-- =====================================================================
+-- CONFIGURACIÓN DE SEGURIDAD RLS (POLÍTICAS COMPATIBLES CON CLIENTE HÍBRIDO)
+-- =====================================================================
+
+-- Habilitación explícita de RLS en todas las tablas primarias
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recharges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.history ENABLE ROW LEVEL SECURITY;
+
+-- 1. Políticas de Selección (SELECT - Permite lecturas de datos filtrados por el cliente)
+CREATE POLICY "Permitir lectura general de usuarios" ON public.users FOR SELECT USING (true);
+CREATE POLICY "Permitir lectura general de referidos" ON public.referrals FOR SELECT USING (true);
+CREATE POLICY "Permitir lectura general de recargas" ON public.recharges FOR SELECT USING (true);
+CREATE POLICY "Permitir lectura general de retiros" ON public.withdrawals FOR SELECT USING (true);
+CREATE POLICY "Permitir lectura general de historial" ON public.history FOR SELECT USING (true);
+
+-- 2. Políticas de Creación (INSERT - Permite registros y envío de solicitudes de recarga/retiro)
+CREATE POLICY "Permitir registro público de usuarios" ON public.users FOR INSERT WITH CHECK (true);
+CREATE POLICY "Permitir logueo de referidos legítimo" ON public.referrals FOR INSERT WITH CHECK (true);
+CREATE POLICY "Permitir envío de solicitudes de recarga" ON public.recharges FOR INSERT WITH CHECK (true);
+CREATE POLICY "Permitir envío de solicitudes de retiro" ON public.withdrawals FOR INSERT WITH CHECK (true);
+CREATE POLICY "Permitir registro de entradas contables" ON public.history FOR INSERT WITH CHECK (true);
+
+-- 3. Políticas de Modificación (UPDATE - Garantiza actualizaciones mutuas bajo lógica de triggers)
+CREATE POLICY "Permitir actualizaciones de usuarios" ON public.users FOR UPDATE USING (true);
+CREATE POLICY "Permitir actualizaciones de referidos" ON public.referrals FOR UPDATE USING (true);
+CREATE POLICY "Permitir aprobación o denegación de recargas" ON public.recharges FOR UPDATE USING (true);
+CREATE POLICY "Permitir procesamiento de retiros" ON public.withdrawals FOR UPDATE USING (true);
+CREATE POLICY "Permitir corrección de historial" ON public.history FOR UPDATE USING (true);
+
+-- =====================================================================
+-- TRIGGERS DE SEGURIDAD (ANTI-DOUBLE-SPENDING & ANTI-FORGERY)
+-- =====================================================================
+
 CREATE OR REPLACE FUNCTION public.protect_recharges_finalized() 
 RETURNS TRIGGER AS $$
 BEGIN
     IF (OLD.status IN ('aprobado', 'denegado')) THEN
-        RAISE EXCEPTION 'Esta transacción ya ha sido finalizada y está congelada.';
+        RAISE EXCEPTION 'Esta transacción ya ha sido finalizada y no puede alterarse por motivos de seguridad.';
     END IF;
     RETURN NEW;
 END;

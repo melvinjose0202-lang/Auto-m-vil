@@ -35,10 +35,12 @@ export default function App() {
           
           if (syncedUser) {
             setCurrentUser(syncedUser);
-            setIsAdmin(wasAdmin);
-          } else if (wasAdmin) {
+            setIsAdmin(wasAdmin && parsed.phone === "8097617087");
+          } else if (wasAdmin && parsed.phone === "8097617087") {
             setCurrentUser(parsed);
             setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
           }
         } catch (e) {
           localStorage.removeItem("autosport_logged_user");
