@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Copy, Check, Users, ShieldAlert, Award, ChevronDown, ChevronUp, Link, Sparkles, RefreshCw } from 'lucide-react';
 import { User } from '../types';
 import { getReferralNetworkDetails, ReferredDetails, syncStateWithSupabase, getDbState, normalizePhoneTo10Digits, checkSupabaseConnection, isRlsViolationDetected } from '../lib/state';
+import { supabase } from '../lib/supabase';
 
 interface TeamProps {
   user: User;
@@ -31,11 +32,17 @@ export default function Team({ user, onUpdateUser }: TeamProps) {
     connected: boolean;
     hasTables: boolean;
     error: string | null;
+    supabaseUrl?: string;
+    serverTotalUsers?: number;
+    serverDirectRefs?: number;
   }>({
     isChecked: false,
     connected: false,
     hasTables: false,
-    error: null
+    error: null,
+    supabaseUrl: '',
+    serverTotalUsers: 0,
+    serverDirectRefs: 0
   });
 
   const performSync = async (silent = false) => {
@@ -43,11 +50,40 @@ export default function Team({ user, onUpdateUser }: TeamProps) {
     try {
       // Diagnostic check the live status
       const status = await checkSupabaseConnection();
+      
+      let serverTotalUsers = 0;
+      let serverDirectRefs = 0;
+      let supUrl = "";
+      
+      if (typeof window !== "undefined") {
+        const metaObj = (import.meta as any).env || {};
+        const rawUrl = metaObj.VITE_SUPABASE_URL || "https://xvdiuujhzczanakyyrzb.supabase.co";
+        supUrl = rawUrl.trim().replace(/\/rest\/v1\/?$/, "").replace(/\/$/, "");
+      }
+
+      if (status.connected && status.hasTables && supabase) {
+        try {
+          const { data: allUsers } = await supabase.from('users').select('phone');
+          if (allUsers) {
+            serverTotalUsers = allUsers.length;
+          }
+          const { data: lvlA } = await supabase.from('users').select('phone').eq('referred_by', normalizePhoneTo10Digits(user.phone));
+          if (lvlA) {
+            serverDirectRefs = lvlA.length;
+          }
+        } catch (errDet) {
+          console.warn("Could not query server counts:", errDet);
+        }
+      }
+
       setDbStatus({
         isChecked: true,
         connected: status.connected,
         hasTables: status.hasTables,
-        error: status.error
+        error: status.error,
+        supabaseUrl: supUrl,
+        serverTotalUsers,
+        serverDirectRefs
       });
 
       // Sync from Supabase to fetch new users/referrals registered across and on other devices
@@ -166,6 +202,23 @@ export default function Team({ user, onUpdateUser }: TeamProps) {
                     ? 'Supabase está conectado pero falta inicializar el esquema. Ingresa al Panel de Administración para copiar y pegar el script SQL de creación de tablas.' 
                     : `Servidor desconectado: ${dbStatus.error || "No se pudo conectar a la base de datos."}. Los nuevos usuarios se guardan solo en local en este celular. Revisa que VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY estén configuradas correctamente.`}
               </p>
+
+              {dbStatus.connected && dbStatus.hasTables && (
+                <div className="mt-3 pt-3 border-t border-slate-200/50 space-y-2 text-[10px] font-mono text-slate-650">
+                  <div className="flex justify-between">
+                    <span>⚡ SERVIDOR ACTIVO:</span>
+                    <span className="font-bold text-slate-800">{dbStatus.supabaseUrl ? dbStatus.supabaseUrl.replace("https://", "").split(".")[0] + ".supabase.co" : "Desconocido"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>👥 PILOTOS TOTALES EN BD:</span>
+                    <span className="font-bold text-slate-800">{dbStatus.serverTotalUsers ?? 0} registrados</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>🏎️ TUS REFERIDOS DIRECTOS (BD):</span>
+                    <span className="font-bold text-slate-800">{dbStatus.serverDirectRefs ?? 0} en red</span>
+                  </div>
+                </div>
+              )}
               
               {isRlsViolationDetected() && (
                 <button
