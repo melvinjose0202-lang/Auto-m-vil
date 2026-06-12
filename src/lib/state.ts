@@ -72,6 +72,69 @@ export const VIP_LEVELS: VIPConfig[] = [
     carName: "Bugatti Chiron Sport",
     carCategory: "Hypercar Exótico",
     carImageName: "exotic_hypercar"
+  },
+  {
+    id: 7,
+    name: "VIP 7",
+    price: 15000,
+    dailyYield: 0.05,
+    carName: "Aston Martin Vantage S",
+    carCategory: "Gran Turismo Premium",
+    carImageName: "aston_vantage"
+  },
+  {
+    id: 8,
+    name: "VIP 8",
+    price: 19000,
+    dailyYield: 0.05,
+    carName: "Ferrari F8 Tributo",
+    carCategory: "Supercar Italiano",
+    carImageName: "ferrari_f8"
+  },
+  {
+    id: 9,
+    name: "VIP 9",
+    price: 24000,
+    dailyYield: 0.05,
+    carName: "McLaren 720S Spider",
+    carCategory: "Exotic High-End Speedster",
+    carImageName: "mclaren_720s"
+  },
+  {
+    id: 10,
+    name: "VIP 10",
+    price: 30000,
+    dailyYield: 0.05,
+    carName: "Rolls-Royce Phantom VIII",
+    carCategory: "Ultra Lujo Presidencial",
+    carImageName: "rr_phantom"
+  },
+  {
+    id: 11,
+    name: "VIP 11",
+    price: 36000,
+    dailyYield: 0.05,
+    carName: "Bentley Continental GT Speed",
+    carCategory: "Gran Turismo de Élite",
+    carImageName: "bentley_continental"
+  },
+  {
+    id: 12,
+    name: "VIP 12",
+    price: 42000,
+    dailyYield: 0.05,
+    carName: "Lamborghini Aventador SVJ",
+    carCategory: "V12 Hypercar Roadster",
+    carImageName: "aventador_svj"
+  },
+  {
+    id: 13,
+    name: "VIP 13",
+    price: 50000,
+    dailyYield: 0.05,
+    carName: "Bugatti La Voiture Noire",
+    carCategory: "El Santo Grial Automotriz",
+    carImageName: "bugatti_noire"
   }
 ];
 

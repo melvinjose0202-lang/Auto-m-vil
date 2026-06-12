@@ -10,7 +10,7 @@ interface RechargeProps {
 }
 
 export default function Recharge({ user, onUpdateUser, onNavigateToTab }: RechargeProps) {
-  const [amount, setAmount] = useState<number>(1000);
+  const [amount, setAmount] = useState<number>(300);
   const [paymentMethod, setPaymentMethod] = useState<string>("Banco Popular");
   const [activeCategory, setActiveCategory] = useState<'banks' | 'crypto'>('banks');
   const [reference, setReference] = useState<string>("");
@@ -23,7 +23,7 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
   const [dragActive, setDragActive] = useState<boolean>(false);
 
   // Preset reference amounts
-  const presets = [500, 1000, 3000, 5000, 9000, 12000];
+  const presets = [300, 800, 2000, 5000, 9000, 12000];
 
   // Specific bank and crypto configuration with realistic branding metadata
   const bankDetails: Record<string, { 
@@ -38,10 +38,10 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
     category: 'banks' | 'crypto';
   }> = {
     "Banco Popular": {
-      account: "782910392",
+      account: "830535910",
       type: "Cuenta de Ahorros RD$",
-      owner: "AUTO SPORT EXOTICS S.R.L.",
-      document: "RNC: 1-32-45698-1",
+      owner: "Ronny a de león morillo",
+      document: "Ahorros",
       info: "Popular RD$ • Transferencia al Instante",
       instructions: "Realiza la transferencia al instante (vía LBTR o al mismo banco) desde tu App Popular o Sucursal Virtual.",
       bgClass: "from-blue-950 via-blue-900 to-slate-900 text-white border border-blue-800/30",
@@ -49,10 +49,10 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
       category: 'banks'
     },
     "Banreservas": {
-      account: "9601321049",
+      account: "4263828958",
       type: "Cuenta de Ahorros RD$",
-      owner: "AUTO SPORT EXOTICS S.R.L.",
-      document: "RNC: 1-32-45698-1",
+      owner: "Ronny a de león morillo",
+      document: "Ahorros",
       info: "Banreservas RD$ • Depósito / Transferencia",
       instructions: "Ideal para depósitos rápidos en estafetas o subagentes Banreservas, o transferencia bancaria directa.",
       bgClass: "from-sky-950 via-sky-800 to-slate-900 text-white border border-sky-400/20",
@@ -60,10 +60,10 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
       category: 'banks'
     },
     "BHD": {
-      account: "2498103049",
+      account: "39594500013",
       type: "Cuenta de Ahorros RD$",
-      owner: "AUTO SPORT EXOTICS S.R.L.",
-      document: "RNC: 1-32-45698-1",
+      owner: "Ronny a de león morillo",
+      document: "Ahorros",
       info: "BHD RD$ • Red Unica al Instante",
       instructions: "Transfiere cómodamente desde tu plataforma de Banco BHD utilizando esta cuenta autorizada.",
       bgClass: "from-emerald-950 via-emerald-800 to-slate-900 text-white border border-emerald-500/20",
@@ -71,7 +71,7 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
       category: 'banks'
     },
     "USDT BEP20": {
-      account: "0x7E3CcDe7C12f384aD8bF85AaD4C2F86f9ee52A4A",
+      account: "0x636128495954dbb0b4b401e0d7f2b27341996a9b",
       type: "Red Binance Smart Chain (BEP20)",
       owner: "AUTO SPORT SMART CONTRACT",
       document: "Red BEP20 únicamente",
@@ -82,7 +82,7 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
       category: 'crypto'
     },
     "USDT TRC20": {
-      account: "TYfEwLqVfPx3J2p38dAsKLp9eR7YqW6A3s",
+      account: "TPBAKohzDxpEJk7ppMeM4SUDV3NJRTGc9v",
       type: "Red TRON (TRC20)",
       owner: "BILLETERA CORPORATIVA USDT",
       document: "Red TRC20 únicamente",
@@ -417,16 +417,16 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
           <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Reportar Depósito</h3>
         </div>
 
-        {/* Input Reference Number */}
+        {/* Input Reference Number / Correct Name */}
         <div>
           <label htmlFor="refInput" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-            Número de Referencia de la Transacción <span className="text-red-500 font-black">*</span>
+            Ingresa tu nombre correcto <span className="text-red-500 font-black">*</span>
           </label>
           <input
             id="refInput"
             type="text"
             required
-            placeholder="Ingrese los números del comprobante (Banreservas/Popular/BHD) o Hash de red"
+            placeholder="Ingresa tu nombre correcto"
             className="block w-full px-4 py-2.5 border border-slate-200 rounded-xl text-slate-900 bg-slate-50 placeholder-slate-450 font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-orange-500"
             value={reference}
             onChange={(e) => setReference(e.target.value)}

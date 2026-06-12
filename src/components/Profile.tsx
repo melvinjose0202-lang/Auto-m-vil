@@ -131,7 +131,7 @@ export default function Profile({ user, onLogout, onNavigateToTab }: ProfileProp
 
               {/* Whatsapp group */}
               <a 
-                href="https://chat.whatsapp.com/autosport_dominicana" 
+                href="https://chat.whatsapp.com/IFo1Gv20vY0Ipk4vJs3KKj?s=cl&p=i&mlu=4" 
                 target="_blank" 
                 rel="noreferrer"
                 id="link-whatsapp-group"
@@ -151,7 +151,7 @@ export default function Profile({ user, onLogout, onNavigateToTab }: ProfileProp
 
               {/* Whatsapp Direct service */}
               <a 
-                href="https://wa.me/18097617087" 
+                href="https://wa.me/18493549210" 
                 target="_blank" 
                 rel="noreferrer"
                 id="link-whatsapp-direct"
@@ -162,8 +162,8 @@ export default function Profile({ user, onLogout, onNavigateToTab }: ProfileProp
                     <HelpCircle className="h-5 w-5" />
                   </div>
                   <div>
-                    <span className="font-extrabold text-slate-800">Soporte Técnico 1-a-1</span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">Atención especializada sobre tus recargas o retiros</span>
+                    <span className="font-extrabold text-slate-800">Soporte Técnico WhatsApp</span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">Asistencia inmediata al +1 (849) 354-9210</span>
                   </div>
                 </div>
                 <span className="text-teal-600 font-extrabold uppercase tracking-wider text-[10px] bg-teal-50 px-2 py-1 rounded">Chatear</span>
@@ -198,47 +198,113 @@ export default function Profile({ user, onLogout, onNavigateToTab }: ProfileProp
           </div>
         </>
       ) : (
-        /* Highly styled VIP details / Profit multipliers pesos table */
+        /* Highly styled VIP details / Profit multipliers pesos table representing AUTO SPORT image */
         <div className="space-y-4">
-          <div className="flex justify-between items-center px-1">
-            <h4 className="text-xs font-black uppercase tracking-widest text-slate-650">Calculadora de Ganancias VIP</h4>
-            <span className="text-[10px] bg-emerald-150 text-emerald-800 font-extrabold uppercase px-2 py-0.5 rounded">Rendimiento Fijo: 5%</span>
-          </div>
+          <div className="bg-gradient-to-b from-[#1c0604] via-[#260a06] to-[#0f0201] text-white p-4 sm:p-5 rounded-3xl border border-orange-950/45 shadow-2xl flex flex-col gap-5 overflow-hidden">
+            
+            {/* Header branding block */}
+            <div className="text-center py-2 flex flex-col items-center select-none">
+              <h1 className="text-xl sm:text-2xl font-black tracking-widest text-white uppercase font-mono">
+                AUTO SPORT
+              </h1>
+              <span className="text-[10px] sm:text-[11px] font-extrabold tracking-widest text-orange-400 uppercase mt-0.5 max-w-[280px] sm:max-w-none border-b border-orange-900/30 pb-2 w-full">
+                TABLA DE INVERSIÓN ALTA GAMA
+              </span>
+            </div>
 
-          <div className="bg-white border border-slate-150 rounded-3xl shadow-sm overflow-hidden overflow-x-auto">
-            <table className="w-full text-xs text-slate-800">
-              <thead className="bg-slate-900 text-white uppercase text-[9px] tracking-wider text-left border-b border-slate-200">
-                <tr>
-                  <th className="p-3">Rango</th>
-                  <th className="p-3 text-right">Inversión</th>
-                  <th className="p-3 text-right">Día (5%)</th>
-                  <th className="p-3 text-right">Mes (30d)</th>
-                  <th className="p-3 text-right hidden sm:table-cell">Año (365d)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-mono text-slate-700">
-                {vipProfitTable.map((col, k) => (
-                  <tr key={k} className="hover:bg-slate-50/50 transition">
-                    <td className="p-3 font-sans">
-                      <span className="font-extrabold text-slate-900 block">{col.name}</span>
-                      <span className="text-[9.5px] text-slate-400 block mt-0.5">{col.car}</span>
-                    </td>
-                    <td className="p-3 text-right font-bold text-slate-900">RD$ {col.price}</td>
-                    <td className="p-3 text-right text-emerald-600 font-extrabold">+RD$ {col.daily.toFixed(0)}</td>
-                    <td className="p-3 text-right font-bold">RD$ {col.monthly.toLocaleString('es-DO')}</td>
-                    <td className="p-3 text-right text-slate-500 hidden sm:table-cell font-medium">RD$ {col.yearly.toLocaleString('es-DO')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            {/* Top 3 Yield quick cards */}
+            <div className="grid grid-cols-3 gap-2 select-none text-center">
+              <div className="bg-[#41130a]/70 border border-[#f34515]/20 rounded-xl p-2.5 flex flex-col justify-between shadow-md">
+                <span className="text-[7.5px] uppercase font-black tracking-tight text-orange-200">RENDIMIENTO DIARIO</span>
+                <span className="text-lg sm:text-xl font-black text-white py-1">5%</span>
+                <span className="text-[7px] uppercase font-black tracking-tight text-white/50 block">DIARIO</span>
+              </div>
+              <div className="bg-[#41130a]/70 border border-[#f34515]/20 rounded-xl p-2.5 flex flex-col justify-between shadow-md">
+                <span className="text-[7.5px] uppercase font-black tracking-tight text-orange-200">RENDIMIENTO MENSUAL</span>
+                <span className="text-lg sm:text-xl font-black text-white py-1">150%</span>
+                <span className="text-[7px] uppercase font-black tracking-tight text-white/50 block">APROX.</span>
+              </div>
+              <div className="bg-[#41130a]/70 border border-[#f34515]/20 rounded-xl p-2.5 flex flex-col justify-between shadow-md">
+                <span className="text-[7.5px] uppercase font-black tracking-tight text-orange-200">RENDIMIENTO ANUAL</span>
+                <span className="text-lg sm:text-xl font-black text-white py-1">1825%</span>
+                <span className="text-[7px] uppercase font-black tracking-tight text-white/50 block">APROX.</span>
+              </div>
+            </div>
 
-          {/* Table terms disclaimer */}
-          <div className="p-4 bg-orange-50 border border-orange-100/60 text-orange-850 rounded-2xl flex gap-2 text-[10.5px] leading-relaxed">
-            <ShieldCheck className="h-4.5 w-4.5 text-orange-600 flex-shrink-0 mt-0.5" />
-            <span>
-              Los cálculos mostrados asumen la duración indefinida del contrato de vehículos de alta gama de Auto Sport. Las comisiones ganadas de sus respectivos referidos se abonan de manera adicional en tiempo real.
-            </span>
+            {/* The main VIP levels table */}
+            <div className="bg-[#120302]/90 rounded-2xl overflow-hidden border border-white/5 shadow-inner">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[500px] sm:min-w-0">
+                  <thead className="bg-gradient-to-r from-[#cd2609] via-[#cc2409] to-[#eb391a] text-white uppercase text-[8px] sm:text-[8.5px] tracking-wider font-black border-b border-[#eb2d09]/20 text-center">
+                    <tr>
+                      <th className="p-2.5 text-left font-bold text-orange-100">NIVEL VIP</th>
+                      <th className="p-2.5 text-orange-100">INVERSIÓN (RD$)</th>
+                      <th className="p-2.5 text-orange-100">GANANCIA DIARIA (5%)</th>
+                      <th className="p-2.5 text-orange-100">GANANCIA MENSUAL (30 DÍAS)</th>
+                      <th className="p-2.5 text-orange-100">GANANCIA ANUAL (365 DÍAS)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-[10.5px] sm:text-[11px] font-bold font-mono text-center">
+                    {vipProfitTable.map((col, index) => {
+                      const isActive = user.vips.includes(index + 1);
+                      return (
+                        <tr 
+                          key={index} 
+                          className={`transition hover:bg-white/5 ${
+                            isActive ? 'bg-orange-500/10 text-white' : 'text-slate-300'
+                          }`}
+                        >
+                          <td className="p-2.5 text-left font-sans flex items-center gap-1.5 min-w-[90px]">
+                            <span className="px-2.5 py-0.5 text-[10px] bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-full font-black tracking-wide text-xs">
+                              {col.name}
+                            </span>
+                          </td>
+                          <td className="p-2.5 font-black text-white">
+                            RD$ {col.price.toLocaleString('en-US')}
+                          </td>
+                          <td className="p-2.5 text-orange-400 font-extrabold">
+                            RD$ {(col.daily).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="p-2.5 text-orange-400 font-extrabold">
+                            RD$ {(col.monthly).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="p-2.5 text-orange-400 font-extrabold">
+                            RD$ {(col.yearly).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Bottom info banner pills matching the footer */}
+            <div className="flex flex-col sm:flex-row gap-2 font-sans select-none text-xs">
+              <div className="flex-1 bg-white/[0.03] hover:bg-white/5 p-2.5 rounded-xl border border-white/5 flex items-center gap-2 transition">
+                <span className="text-yellow-500 text-xs">⭐</span>
+                <div className="text-left font-black tracking-tight text-[8.5px] sm:text-[9px] uppercase leading-tight">
+                  <span className="text-white block">INVIERTE HOY,</span>
+                  <span className="text-orange-500">ACELERA TUS GANANCIAS</span>
+                </div>
+              </div>
+              <div className="flex-1 bg-[#fa4c06]/5 p-2.5 rounded-xl border border-[#fa4c06]/10 flex items-center gap-2 transition">
+                <span className="text-emerald-500 text-xs font-black">✔</span>
+                <div className="text-left font-black text-[8px] sm:text-[8.5px] uppercase text-slate-300 leading-tight">
+                  <span className="text-white block">Plataforma segura y confiable</span>
+                  <span className="text-orange-500/90">para inversionistas de alto nivel</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Legal warning/info tooltip matching footer text */}
+            <div className="text-left flex items-start gap-1.5 text-[8.5px] text-slate-400 font-medium leading-relaxed select-none border-t border-white/5 pt-2">
+              <span className="text-[10px] text-orange-500">ⓘ</span>
+              <span>
+                Los rendimientos son aproximados y pueden variar de acuerdo con los términos contractuales de cada vehículo en Auto Sport. Calculados con base en un rendimiento diario del 5% compuesto.
+              </span>
+            </div>
+
           </div>
         </div>
       )}

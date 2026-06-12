@@ -22,6 +22,13 @@ export default function VIPStore({ user, onUpdateUser, onNavigateToTab }: VIPSto
     4: "https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?auto=format&fit=crop&q=80&w=600", // Porsche 911 Coupe
     5: "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?auto=format&fit=crop&q=80&w=600", // Lambo supercar
     6: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=600", // Bugatti Chiron Sport (Carro Duro)
+    7: "https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&q=80&w=600", // Aston martin
+    8: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?auto=format&fit=crop&q=80&w=600", // Ferrari F8
+    9: "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?auto=format&fit=crop&q=80&w=600", // McLaren
+    10: "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&q=80&w=600", // Rolls-Royce
+    11: "https://images.unsplash.com/photo-1606016159991-dfe4f2746ad5?auto=format&fit=crop&q=80&w=600", // Bentley
+    12: "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&q=80&w=600", // Aventador SVJ
+    13: "https://images.unsplash.com/photo-1627454820516-dc767bcb4d3e?auto=format&fit=crop&q=80&w=600", // Bugatti La Voiture Noire (Matte Black Studio Hypercar)
   };
 
   const handleBuy = (id: number) => {

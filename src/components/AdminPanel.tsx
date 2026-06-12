@@ -11,7 +11,8 @@ import {
   updateUserBalances,
   updateUserPassword,
   updateUserVips,
-  deleteUserFromPlatform
+  deleteUserFromPlatform,
+  VIP_LEVELS
 } from '../lib/state';
 import { supabase } from '../lib/supabase';
 
@@ -978,8 +979,9 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                                         Asigna o revoca accesos VIP instantáneamente. Se desbloqueará la plataforma del usuario al instante.
                                       </p>
                                       
-                                      <div className="grid grid-cols-3 gap-1.5 pt-1.5">
-                                        {[1, 2, 3, 4, 5, 6].map((vipId) => {
+                                      <div className="grid grid-cols-3 gap-1.5 pt-1.5 max-h-48 overflow-y-auto pr-1">
+                                        {VIP_LEVELS.map((vip) => {
+                                          const vipId = vip.id;
                                           const isAssigned = editVips.includes(vipId);
                                           return (
                                             <button
