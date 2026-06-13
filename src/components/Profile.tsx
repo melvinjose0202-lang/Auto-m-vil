@@ -43,7 +43,7 @@ export default function Profile({ user, onLogout, onNavigateToTab }: ProfileProp
         <button
           onClick={onLogout}
           id="btn-logout"
-          className="h-10 px-3 bg-red-50 hover:bg-rose-100 border border-red-200 text-red-650 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition"
+          className="h-10 px-3 bg-red-50 hover:bg-rose-100 border border-red-200 text-red-600 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition"
           title="Cerrar Sesión"
         >
           <LogOut className="h-4 w-4" />
@@ -63,7 +63,7 @@ export default function Profile({ user, onLogout, onNavigateToTab }: ProfileProp
         </div>
         <div className="bg-white border border-slate-100 rounded-2xl p-3 shadow-inner">
           <span className="text-[9px] uppercase font-black text-slate-405 block">VIPs Activos</span>
-          <span className="text-[11.5px] font-black text-orange-650 font-mono block mt-1 leading-none">{user.vips.length} Autos</span>
+          <span className="text-[11.5px] font-black text-orange-600 font-mono block mt-1 leading-none">{user.vips.length} Autos</span>
         </div>
       </div>
 

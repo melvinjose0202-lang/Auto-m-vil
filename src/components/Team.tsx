@@ -320,7 +320,7 @@ CREATE POLICY "Public insert history" ON public.history FOR INSERT WITH CHECK (t
       {/* Invite Info Card */}
       <div className="bg-gradient-to-tr from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-lg space-y-4 relative overflow-hidden">
         {/* Background visual graphics */}
-        <div className="absolute top-0 right-0 w-24 h-24 bg-orange-650/20 rounded-full blur-xl -mr-4 -mt-4 animate-pulse" />
+        <div className="absolute top-0 right-0 w-24 h-24 bg-orange-600/20 rounded-full blur-xl -mr-4 -mt-4 animate-pulse" />
         
         <div>
           <span className="text-[10px] text-orange-500 font-black uppercase tracking-widest block">Potencia tus Ganancias</span>

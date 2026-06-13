@@ -69,7 +69,7 @@ export default function FinanceHistory({ user }: FinanceHistoryProps) {
               const isPositive = item.amount > 0;
               
               // Custom background and icons styling based on type
-              let iconTheme = { bg: "bg-orange-100 text-orange-650", icon: <Award className="h-4 w-4" /> };
+              let iconTheme = { bg: "bg-orange-100 text-orange-600", icon: <Award className="h-4 w-4" /> };
               if (item.type === 'recarga') {
                 iconTheme = { bg: "bg-sky-100 text-sky-700", icon: <Landmark className="h-4 w-4" /> };
               } else if (item.type === 'retiro') {
@@ -93,7 +93,7 @@ export default function FinanceHistory({ user }: FinanceHistoryProps) {
                   </div>
 
                   <div className="text-right flex-shrink-0">
-                    <span className={`text-sm font-mono font-black ${isPositive ? 'text-emerald-650' : 'text-slate-800'}`}>
+                    <span className={`text-sm font-mono font-black ${isPositive ? 'text-emerald-600' : 'text-slate-800'}`}>
                       {isPositive ? '+' : ''}RD$ {item.amount.toLocaleString('es-DO', { minimumFractionDigits: 1 })}
                     </span>
                     <span className="text-[9.5px] uppercase font-extrabold block text-slate-400 tracking-wider mt-0.5">{item.type}</span>

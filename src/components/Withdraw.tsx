@@ -98,7 +98,7 @@ export default function Withdraw({ user, onUpdateUser }: WithdrawProps) {
         </div>
         <div className="bg-white/80 px-4 py-2 rounded-2xl border border-slate-200/40 text-center font-mono">
           <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-widest">Hora Oficial RD</span>
-          <span className={`text-md font-black ${isDrHrValid ? 'text-emerald-700' : 'text-red-650'}`}>{drTime || "Calculando..."}</span>
+          <span className={`text-md font-black ${isDrHrValid ? 'text-emerald-700' : 'text-red-600'}`}>{drTime || "Calculando..."}</span>
         </div>
       </div>
 

@@ -289,7 +289,7 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <span className="text-[10px] font-black text-orange-650 block text-orange-600">RD$ {daily.toLocaleString('es-DO')}/día</span>
+                  <span className="text-[10px] font-black block text-orange-600">RD$ {daily.toLocaleString('es-DO')}/día</span>
                   <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-wide">Rendimiento 5%</span>
                 </div>
               </div>
@@ -623,7 +623,7 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
           <button
             type="submit"
             id="btn-upload-receipt"
-            className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white text-xs font-black uppercase tracking-wider py-3.5 px-4 rounded-xl shadow shadow-orange-655-20 cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+            className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white text-xs font-black uppercase tracking-wider py-3.5 px-4 rounded-xl shadow-lg shadow-orange-600/20 cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
           >
             <span>SUBIR COMPROBANTE DE PAGO</span>
             <ArrowRight className="h-4 w-4" />

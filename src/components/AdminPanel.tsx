@@ -389,7 +389,7 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
       {/* Top Admin Navigation Header bar */}
       <header className="bg-slate-900 text-white py-4 px-4 sm:px-6 shadow-md flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 bg-orange-650 rounded-xl flex items-center justify-center font-black text-white text-md">
+          <div className="h-9 w-9 bg-orange-600 rounded-xl flex items-center justify-center font-black text-white text-sm">
             AS
           </div>
           <div>
@@ -536,7 +536,7 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
         ) : null}
 
         {supabaseErrorText && (
-          <div className="p-4 bg-red-105 border border-red-200 rounded-2xl text-red-700 text-xs font-semibold leading-relaxed text-left">
+          <div className="p-4 bg-red-100 border border-red-200 rounded-2xl text-red-700 text-xs font-semibold leading-relaxed text-left">
             <strong>Advertencia del backend:</strong> {supabaseErrorText}. Por favor, verifica tu conexión y la base de datos de Supabase.
           </div>
         )}
@@ -643,7 +643,7 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                               </div>
                             </td>
                             <td className="p-3">
-                              <span className={`text-[9.5px] uppercase font-black px-2.5 py-1 rounded-full ${req.status === 'pendiente' ? 'bg-amber-100 text-amber-800' : req.status === 'aprobado' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-105 text-red-800'}`}>
+                              <span className={`text-[9.5px] uppercase font-black px-2.5 py-1 rounded-full ${req.status === 'pendiente' ? 'bg-amber-100 text-amber-800' : req.status === 'aprobado' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
                                 {req.status}
                               </span>
                             </td>
@@ -780,11 +780,11 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                           </div>
                         </td>
                         <td className="p-3 font-mono font-bold">RD$ {w.amount}</td>
-                        <td className="p-3 font-mono text-red-650 font-semibold">-RD$ {w.commission}</td>
-                        <td className="p-3 font-mono text-emerald-650 font-black">RD$ {w.netAmount}</td>
+                        <td className="p-3 font-mono text-red-600 font-semibold">-RD$ {w.commission}</td>
+                        <td className="p-3 font-mono text-emerald-600 font-black">RD$ {w.netAmount}</td>
                         <td className="p-3 font-mono text-[11px]">{new Date(w.date).toLocaleString('es-DO')}</td>
                         <td className="p-3">
-                          <span className={`text-[9.5px] uppercase font-black px-2.5 py-1 rounded-full ${w.status === 'pendiente' ? 'bg-amber-100 text-amber-800' : w.status === 'completado' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-105 text-red-000'}`}>
+                          <span className={`text-[9.5px] uppercase font-black px-2.5 py-1 rounded-full ${w.status === 'pendiente' ? 'bg-amber-100 text-amber-800' : w.status === 'completado' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
                             {w.status}
                           </span>
                         </td>
@@ -799,7 +799,7 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                               </button>
                               <button
                                 onClick={() => handleApproveWithdrawal(w.id)}
-                                className="py-1.5 px-3 bg-emerald-650 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg cursor-pointer uppercase tracking-wider shadow-sm whitespace-nowrap"
+                                className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg cursor-pointer uppercase tracking-wider shadow-sm whitespace-nowrap"
                               >
                                 Completar Pago
                               </button>
@@ -865,19 +865,19 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                           <tr className={`hover:bg-slate-50/40 transition-colors ${isExpanded ? 'bg-orange-50/30' : ''}`}>
                             <td className="p-3 font-semibold text-slate-900">{item.phone}</td>
                             <td className="p-3 text-slate-400">
-                              <span className="bg-slate-100 hover:bg-slate-200 text-slate-750 font-semibold px-2 py-0.5 rounded cursor-pointer transition select-none tracking-tight" onClick={() => handleStartEditingUser(item)}>
+                              <span className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-2 py-0.5 rounded cursor-pointer transition select-none tracking-tight" onClick={() => handleStartEditingUser(item)}>
                                 {isExpanded ? "👁️ " + (item.password || "OAuth") : "🔐 Ver clave"}
                               </span>
                             </td>
-                            <td className="p-3 font-bold text-slate-850">RD$ {item.balance.toLocaleString('es-DO', {minimumFractionDigits: 1})}</td>
+                            <td className="p-3 font-bold text-slate-800 font-mono">RD$ {item.balance.toLocaleString('es-DO', {minimumFractionDigits: 1})}</td>
                             <td className="p-3 text-slate-500">{item.referredBy || "- Directo -"}</td>
                             <td className="p-3 font-sans">
-                              <span className="bg-orange-50 text-orange-650 font-bold px-2 py-0.5 rounded text-[10px] border border-orange-100 uppercase tracking-tight">
+                              <span className="bg-orange-50 text-orange-600 font-bold px-2 py-0.5 rounded text-[10px] border border-orange-100 uppercase tracking-tight">
                                 {item.vips.length > 0 ? `VIP ${item.vips.join(', ')}` : 'Sin VIP'}
                               </span>
                             </td>
-                            <td className="p-3 text-emerald-650 font-bold">RD$ {item.totalRecharged}</td>
-                            <td className="p-3 text-red-650 font-bold">RD$ {item.totalWithdrawn}</td>
+                            <td className="p-3 text-emerald-600 font-bold">RD$ {item.totalRecharged}</td>
+                            <td className="p-3 text-red-600 font-bold">RD$ {item.totalWithdrawn}</td>
                             <td className="p-3 text-slate-400 font-sans">{new Date(item.registeredAt).toLocaleDateString()}</td>
                             <td className="p-3 text-right">
                               <button
@@ -1103,7 +1103,7 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
               <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
                 <div>
                   <h3 className="text-sm font-black uppercase text-slate-800 tracking-tight flex items-center gap-1.5">
-                    <Users className="h-4 w-4 text-orange-650" />
+                    <Users className="h-4 w-4 text-orange-600" />
                     Árbol de Referidos y Códigos de Registro
                   </h3>
                   <p className="text-[11px] text-slate-400 font-medium">Esta tabla lee con qué código o enlace ingresó cada piloto, su bono de bienvenida y sus recargas/retiros acumulados.</p>
@@ -1167,7 +1167,7 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                                 {directReferralsCount} referidos
                               </span>
                             </td>
-                            <td className="p-3 font-extrabold text-emerald-650">RD$ {item.totalRecharged.toLocaleString()}</td>
+                            <td className="p-3 font-extrabold text-emerald-600">RD$ {item.totalRecharged.toLocaleString()}</td>
                             <td className="p-3 font-extrabold text-rose-600">RD$ {item.totalWithdrawn.toLocaleString()}</td>
                             <td className="p-3 text-slate-800 font-black">RD$ {item.balance.toLocaleString()}</td>
                             <td className="p-3 text-slate-400 font-sans">{new Date(item.registeredAt).toLocaleDateString()}</td>
