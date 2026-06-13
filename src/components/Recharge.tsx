@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Copy, Check, Upload, Landmark, ShieldCheck, ArrowRight, Wallet2, Coins, DollarSign, CreditCard, CheckCircle2, AlertCircle } from 'lucide-react';
 import { User } from '../types';
 import { submitRecharge } from '../lib/state';
@@ -21,6 +21,9 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isPdf = receiptName.toLowerCase().endsWith('.pdf') || receiptUrl.startsWith('data:application/pdf');
 
   // Preset reference amounts
   const presets = [300, 800, 2000, 5000, 9000, 12000];
@@ -141,6 +144,8 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
         }
       };
       reader.readAsDataURL(file);
+      // Reset input value so selecting the same file again triggers onChange
+      e.target.value = "";
     }
   };
 
@@ -439,7 +444,8 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
           onDragOver={handleDrag}
           onDragLeave={handleDrag}
           onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-2xl p-5 text-center flex flex-col items-center justify-center cursor-pointer transition ${
+          onClick={() => fileInputRef.current?.click()}
+          className={`border-2 border-dashed rounded-2xl p-5 text-center flex flex-col items-center justify-center cursor-pointer transition select-none ${
             dragActive ? 'border-orange-500 bg-orange-50/20' : 'border-slate-200 hover:border-slate-350 bg-slate-50/30'
           }`}
         >
@@ -450,16 +456,16 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
           <input
             type="file"
             id="file-upload-receipt"
+            ref={fileInputRef}
             className="hidden"
-            accept="image/*"
+            accept="image/*,application/pdf"
             onChange={handleFileChange}
           />
-          <label 
-            htmlFor="file-upload-receipt"
-            className="mt-3 inline-block bg-white hover:bg-slate-100 text-slate-700 font-extrabold text-[10px] uppercase tracking-wider py-1.5 px-3 rounded-lg cursor-pointer select-none border border-slate-200 shadow-sm"
+          <div 
+            className="mt-3 inline-block bg-white hover:bg-slate-100 text-slate-700 font-extrabold text-[10px] uppercase tracking-wider py-1.5 px-3 rounded-lg border border-slate-200 shadow-sm"
           >
             Examinar Archivo
-          </label>
+          </div>
 
           {receiptName && (
             <div className="mt-3 text-[11px] bg-orange-500/10 border border-orange-500/20 text-orange-700 px-3 py-1 rounded-full font-mono font-bold flex items-center gap-1.5 justify-center">
@@ -468,14 +474,21 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
           )}
 
           {receiptUrl && receiptUrl.startsWith('data:') && (
-            <div className="mt-3.5 p-1 bg-white rounded-2xl border border-slate-200/60 shadow-sm flex flex-col items-center max-w-[220px]">
-              <img 
-                src={receiptUrl} 
-                alt="Vista previa" 
-                className="rounded-xl object-cover max-h-32 w-full"
-                referrerPolicy="no-referrer"
-              />
-              <span className="text-[9px] font-black uppercase text-orange-600 tracking-wider mt-1.5 select-none">Comprobante Cargado</span>
+            <div className="mt-3.5 p-1 bg-white rounded-2xl border border-slate-200/60 shadow-sm flex flex-col items-center max-w-[220px] w-full" onClick={(e) => e.stopPropagation()}>
+              {isPdf ? (
+                <div className="p-4 bg-slate-50 rounded-xl flex flex-col items-center justify-center w-full min-h-[100px] border border-slate-100">
+                  <span className="text-xl">📄</span>
+                  <span className="text-[10px] font-bold text-slate-600 mt-2 text-center truncate w-full">{receiptName}</span>
+                </div>
+              ) : (
+                <img 
+                  src={receiptUrl} 
+                  alt="Vista previa" 
+                  className="rounded-xl object-cover max-h-32 w-full"
+                  referrerPolicy="no-referrer"
+                />
+              )}
+              <span className="text-[9px] font-black uppercase text-orange-600 tracking-wider mt-1.5 select-none font-sans">Comprobante Cargado</span>
             </div>
           )}
         </div>
@@ -493,17 +506,32 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
           </div>
         )}
 
-        {success && (
-          <div className="p-4 bg-emerald-50 text-emerald-800 text-xs rounded-xl border border-emerald-100 leading-relaxed space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-emerald-950">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <span>¡OPERACIÓN EN REVISIÓN ADMINISTRATIVA!</span>
+        {success ? (
+          <div className="space-y-3">
+            <div className="p-4 bg-emerald-50 text-emerald-800 text-xs rounded-xl border border-emerald-100 leading-relaxed space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-emerald-950">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <span>¡OPERACIÓN EN REVISIÓN ADMINISTRATIVA!</span>
+              </div>
+              <p>{success}</p>
             </div>
-            <p>{success}</p>
+            
+            <button
+              type="button"
+              onClick={() => {
+                setSuccess(null);
+                setError(null);
+                setReceiptUrl("");
+                setReceiptName("comprobante.jpg");
+                setReference("");
+              }}
+              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black uppercase tracking-wider py-3.5 px-4 rounded-xl shadow shadow-emerald-500/20 cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+            >
+              <span>REPORTAR OTRA RECARGA</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
           </div>
-        )}
-
-        {!success && (
+        ) : (
           <button
             type="submit"
             id="btn-upload-receipt"
