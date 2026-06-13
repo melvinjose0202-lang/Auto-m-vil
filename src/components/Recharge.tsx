@@ -155,6 +155,11 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
     setError(null);
     setSuccess(null);
 
+    if (!reference.trim()) {
+      setError("Por favor, ingresa tu Nombre Completo o Número de Referencia en el campo arriba del comprobante.");
+      return;
+    }
+
     if (!receiptUrl) {
       setError("Por favor, sube una imagen, foto o captura de pantalla legible del comprobante para verificación administrativa.");
       return;
@@ -509,13 +514,12 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
         {/* Input Reference Number / Correct Name */}
         <div>
           <label htmlFor="refInput" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-            Ingresa tu nombre correcto <span className="text-red-500 font-black">*</span>
+            Ingresa tu Nombre Completo o de Referencia <span className="text-red-500 font-black">*</span>
           </label>
           <input
             id="refInput"
             type="text"
-            required
-            placeholder="Ingresa tu nombre correcto"
+            placeholder="Nombre o Número de Referencia"
             className="block w-full px-4 py-2.5 border border-slate-200 rounded-xl text-slate-900 bg-slate-50 placeholder-slate-450 font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-orange-500"
             value={reference}
             onChange={(e) => setReference(e.target.value)}
