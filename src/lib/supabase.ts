@@ -154,7 +154,7 @@ function mapRechargeFromDB(row: any): RechargeRequest {
     paymentMethod: row.payment_method,
     reference: row.reference,
     receiptName: row.receipt_name || "comprobante.png",
-    receiptUrl: row.receipt_url || undefined,
+    receiptUrl: (row.status === 'pendiente') ? (row.receipt_url || undefined) : undefined,
     status: row.status as ('pendiente' | 'aprobado' | 'denegado'),
     date: row.date
   };

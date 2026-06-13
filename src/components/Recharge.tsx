@@ -9,6 +9,59 @@ interface RechargeProps {
   onNavigateToTab: (index: number) => void;
 }
 
+function compressImageFile(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result;
+      if (typeof dataUrl !== 'string') {
+        resolve("");
+        return;
+      }
+      
+      if (!file.type.startsWith("image/")) {
+        resolve(dataUrl);
+        return;
+      }
+      
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 600;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL("image/jpeg", 0.5);
+          resolve(compressed);
+        } else {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => {
+        resolve(dataUrl);
+      };
+      img.src = dataUrl;
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function Recharge({ user, onUpdateUser, onNavigateToTab }: RechargeProps) {
   const [amount, setAmount] = useState<number>(300);
   const [selectedVipId, setSelectedVipId] = useState<number | null>(1); // Default to VIP 1 (RD$300)
@@ -117,34 +170,32 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
       setReceiptName(file.name);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target && typeof event.target.result === 'string') {
-          setReceiptUrl(event.target.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImageFile(file);
+        setReceiptUrl(compressed);
+      } catch (err) {
+        console.error("Error compressing file:", err);
+      }
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setReceiptName(file.name);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target && typeof event.target.result === 'string') {
-          setReceiptUrl(event.target.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImageFile(file);
+        setReceiptUrl(compressed);
+      } catch (err) {
+        console.error("Error compressing file:", err);
+      }
       // Reset input value so selecting the same file again triggers onChange
       e.target.value = "";
     }

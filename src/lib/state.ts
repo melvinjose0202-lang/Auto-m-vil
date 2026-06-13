@@ -322,7 +322,7 @@ export function getDbState(): DBState {
   let stateObj: DBState;
   if (!raw) {
     stateObj = JSON.parse(JSON.stringify(DEFAULT_STATE));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj));
+    saveDbState(stateObj);
   } else {
     try {
       stateObj = JSON.parse(raw);
@@ -344,7 +344,7 @@ export function getDbState(): DBState {
       registrationBonusClaimed: true,
       status: 'active'
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj));
+    saveDbState(stateObj);
   }
 
   // Ensure our requested user "8092359175" is always available in state with password "lafama"
@@ -361,7 +361,7 @@ export function getDbState(): DBState {
       registrationBonusClaimed: true,
       status: 'active'
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj));
+    saveDbState(stateObj);
   }
 
   // Robust property sanitization to guarantee safe fields (like vips active array and numbers)
@@ -391,7 +391,33 @@ export function getDbState(): DBState {
 // State save helper
 function saveDbState(state: DBState) {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e: any) {
+      if (e.name === 'QuotaExceededError' || e.message?.toLowerCase().includes('quota') || e.message?.toLowerCase().includes('exceeded')) {
+        console.warn("localStorage quota exceeded! Aggressively pruning non-pending or large base64 receipts from local storage...");
+        try {
+          const prunedState = JSON.parse(JSON.stringify(state));
+          if (prunedState.recharges && Array.isArray(prunedState.recharges)) {
+            prunedState.recharges.forEach((r: any) => {
+              // Completely clear the base64 receipt for processed items, or truncate if enormous
+              if (r.status !== 'pendiente') {
+                r.receiptUrl = undefined;
+              } else if (r.receiptUrl && r.receiptUrl.length > 200000) {
+                // If even a pending receipt is too huge (over 200KB), truncate to avoid crashing
+                r.receiptUrl = "comprobante_remoto_grande";
+              }
+            });
+          }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(prunedState));
+          console.info("State successfully saved to localStorage after pruning old/extreme receipt assets.");
+        } catch (innerErr) {
+          console.error("Critical: Pruning state did not resolve the quota error:", innerErr);
+        }
+      } else {
+        console.error("Error saving state to localStorage:", e);
+      }
+    }
   }
 }
 
