@@ -979,21 +979,55 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
                                         Asigna o revoca accesos VIP instantáneamente. Se desbloqueará la plataforma del usuario al instante.
                                       </p>
                                       
-                                      <div className="grid grid-cols-3 gap-1.5 pt-1.5 max-h-48 overflow-y-auto pr-1">
+                                      <div className="grid grid-cols-2 gap-1.5 pt-1.5 max-h-48 overflow-y-auto pr-1">
                                         {VIP_LEVELS.map((vip) => {
                                           const vipId = vip.id;
-                                          const isAssigned = editVips.includes(vipId);
+                                          const count = editVips.filter((v: number) => v === vipId).length;
                                           return (
-                                            <button
+                                            <div
                                               key={vipId}
-                                              onClick={() => handleToggleVip(item.phone, vipId)}
-                                              className={`py-1.5 rounded-xl font-bold font-sans text-[10px] uppercase transition cursor-pointer select-none text-center border flex flex-col items-center justify-center ${isAssigned ? 'bg-orange-600 text-white border-orange-600 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}
+                                              className={`p-1.5 rounded-xl border flex items-center justify-between gap-1.5 ${count > 0 ? 'bg-orange-50 border-orange-200 text-orange-950 shadow-sm' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
                                             >
-                                              <span>VIP {vipId}</span>
-                                              <span className={`text-[8px] font-normal tracking-wide ${isAssigned ? 'text-orange-100' : 'text-slate-400'}`}>
-                                                {isAssigned ? 'Activo' : 'Inactivo'}
-                                              </span>
-                                            </button>
+                                              <div className="flex flex-col text-left justify-center pl-1">
+                                                <span className="font-extrabold font-sans text-[10px] uppercase">VIP {vipId}</span>
+                                                <span className="text-[8.5px] text-slate-400 font-mono mt-0.5">
+                                                  {count > 0 ? `${count} Autos` : 'Sin auto'}
+                                                </span>
+                                              </div>
+                                              
+                                              <div className="flex items-center gap-1">
+                                                {count > 0 && (
+                                                  <button
+                                                    onClick={() => {
+                                                      const firstIndex = editVips.indexOf(vipId);
+                                                      if (firstIndex !== -1) {
+                                                        const updated = [...editVips];
+                                                        updated.splice(firstIndex, 1);
+                                                        setEditVips(updated);
+                                                        updateUserVips(item.phone, updated);
+                                                        loadAdminState();
+                                                      }
+                                                    }}
+                                                    className="w-5 h-5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-black rounded flex items-center justify-center cursor-pointer select-none text-[10px]"
+                                                    title="Quitar un coche VIP"
+                                                  >
+                                                    -
+                                                  </button>
+                                                )}
+                                                <button
+                                                  onClick={() => {
+                                                    const updated = [...editVips, vipId].sort((a: number, b: number) => a - b);
+                                                    setEditVips(updated);
+                                                    updateUserVips(item.phone, updated);
+                                                    loadAdminState();
+                                                  }}
+                                                  className="w-5 h-5 bg-orange-600 hover:bg-orange-700 text-white font-black rounded flex items-center justify-center cursor-pointer select-none text-[10px]"
+                                                  title="Regalar un coche VIP"
+                                                >
+                                                  +
+                                                </button>
+                                              </div>
+                                            </div>
                                           );
                                         })}
                                       </div>

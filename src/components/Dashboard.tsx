@@ -360,11 +360,11 @@ export default function Dashboard({ user, onUpdateUser, onNavigateToTab }: Dashb
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {user.vips.map((vipId) => {
+            {user.vips.map((vipId, index) => {
               const vip = VIP_LEVELS.find(v => v.id === vipId);
               if (!vip) return null;
               return (
-                <div key={vip.id} className="bg-white border border-slate-100 rounded-3xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                <div key={`${vipId}-${index}`} className="bg-white border border-slate-100 rounded-3xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
                   <div className="absolute top-1.5 right-1.5 bg-orange-600 text-white font-mono font-bold text-[9px] px-1.5 py-0.5 rounded">
                     5% Diario
                   </div>

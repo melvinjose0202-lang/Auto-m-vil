@@ -87,14 +87,14 @@ export default function VIPStore({ user, onUpdateUser, onNavigateToTab }: VIPSto
       {/* VIP Product Grid */}
       <div className="space-y-5">
         {VIP_LEVELS.map((vip) => {
-          const isOwned = user.vips.includes(vip.id);
+          const ownedCount = user.vips.filter(id => id === vip.id).length;
           const dailyProfit = vip.price * vip.dailyYield;
           const monthlyProfit = dailyProfit * 30;
 
           return (
             <div 
               key={vip.id} 
-              className={`bg-white border text-left rounded-3xl overflow-hidden shadow-sm transition-all relative ${isOwned ? 'border-orange-200 ring-1 ring-orange-200' : 'border-slate-100'}`}
+              className={`bg-white border text-left rounded-3xl overflow-hidden shadow-sm transition-all relative ${ownedCount > 0 ? 'border-orange-200 ring-1 ring-orange-200' : 'border-slate-100'}`}
             >
               {/* Image banner for high-end look */}
               <div className="relative h-44 w-full">
@@ -145,25 +145,27 @@ export default function VIPStore({ user, onUpdateUser, onNavigateToTab }: VIPSto
                 <div className="text-[10.5px] text-slate-500 leading-relaxed flex gap-2">
                   <ShieldCheck className="h-4 w-4 text-orange-500 flex-shrink-0 mt-0.5" />
                   <span>
-                    Al adquirir este vehículo, se bloquea el capital invertido y generas inmediatamente el 5% diario. No se puede adquirir el mismo nivel VIP dos veces.
+                    Renta este vehículo para obtener un retorno diario del 5%. Puedes comprar todos los vehículos que desees para maximizar tus ingresos diarios.
                   </span>
                 </div>
 
-                {/* Action button */}
-                {isOwned ? (
-                  <div className="w-full bg-orange-50 border border-orange-100 text-orange-700 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider select-none">
-                    <CheckCircle2 className="h-4 w-4 text-orange-500" />
-                    <span>Adquirido • Limite 1 por usuario</span>
-                  </div>
-                ) : (
+                {/* Action buttons & quantity */}
+                <div className="space-y-2.5">
+                  {ownedCount > 0 && (
+                    <div className="w-full bg-emerald-50 border border-emerald-100 text-emerald-800 py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-wider select-none">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <span>{ownedCount} {ownedCount === 1 ? 'Auto Activo' : 'Autos Activos'} • Ganando RD$ {(dailyProfit * ownedCount).toLocaleString('es-DO')} / día</span>
+                    </div>
+                  )}
+
                   <button
                     onClick={() => handleBuy(vip.id)}
-                    className="w-full bg-slate-900 hover:bg-black text-white text-xs font-bold uppercase tracking-wider py-3.5 px-4 rounded-xl shadow-md transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full bg-slate-900 hover:bg-black text-white text-xs font-black uppercase tracking-wider py-3.5 px-4 rounded-xl shadow-md transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    <span>Comprar VIP por RD$ {vip.price}</span>
+                    <span>{ownedCount > 0 ? `Comprar otro coche por RD$ ${vip.price.toLocaleString('es-DO')}` : `Comprar coche por RD$ ${vip.price.toLocaleString('es-DO')}`}</span>
                     <ChevronRight className="h-4 w-4" />
                   </button>
-                )}
+                </div>
               </div>
             </div>
           );

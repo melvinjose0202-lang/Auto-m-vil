@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Copy, Check, Upload, Landmark, ShieldCheck, ArrowRight, Wallet2, Coins, DollarSign, CreditCard, CheckCircle2, AlertCircle } from 'lucide-react';
 import { User } from '../types';
-import { submitRecharge } from '../lib/state';
+import { submitRecharge, VIP_LEVELS } from '../lib/state';
 
 interface RechargeProps {
   user: User;
@@ -11,6 +11,7 @@ interface RechargeProps {
 
 export default function Recharge({ user, onUpdateUser, onNavigateToTab }: RechargeProps) {
   const [amount, setAmount] = useState<number>(300);
+  const [selectedVipId, setSelectedVipId] = useState<number | null>(1); // Default to VIP 1 (RD$300)
   const [paymentMethod, setPaymentMethod] = useState<string>("Banco Popular");
   const [activeCategory, setActiveCategory] = useState<'banks' | 'crypto'>('banks');
   const [reference, setReference] = useState<string>("");
@@ -159,11 +160,15 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
       return;
     }
 
+    const finalReference = selectedVipId 
+      ? `${reference.trim()} (VIP ${selectedVipId})` 
+      : reference.trim();
+
     const res = submitRecharge(
       user.phone,
       amount,
       paymentMethod,
-      reference,
+      finalReference,
       receiptUrl,
       receiptName
     );
@@ -175,6 +180,8 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
       setReference("");
       setReceiptUrl("");
       setReceiptName("comprobante.jpg");
+      setSelectedVipId(1);
+      setAmount(300);
       // Update local state
       const rawState = localStorage.getItem("autosport_state_db");
       if (rawState) {
@@ -228,36 +235,113 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
           <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Monto de Recarga</h3>
         </div>
 
+        {/* VIP Level Selector (1 to 13) */}
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-wider text-orange-600 block mb-1.5 flex items-center gap-1 select-none">
+            <Coins className="h-4 w-4 text-orange-500 animate-pulse" />
+            <span>Vincular a un Vehículo VIP (1 al 13):</span>
+          </label>
+          <select
+            value={selectedVipId || ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val) {
+                const id = parseInt(val, 10);
+                setSelectedVipId(id);
+                const foundVip = VIP_LEVELS.find((v) => v.id === id);
+                if (foundVip) {
+                  setAmount(foundVip.price);
+                }
+              } else {
+                setSelectedVipId(null);
+              }
+            }}
+            className="block w-full px-4 py-2.5 border border-orange-200 rounded-xl text-slate-950 bg-orange-50/10 font-bold text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
+          >
+            <option value="">-- Ninguno (Monto Personalizado / Otro) --</option>
+            {VIP_LEVELS.map((vip) => (
+              <option key={vip.id} value={vip.id}>
+                VIP {vip.id} • {vip.carName} (RD$ {vip.price.toLocaleString("es-DO")})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedVipId !== null && (
+          (() => {
+            const currentVip = VIP_LEVELS.find(v => v.id === selectedVipId);
+            if (!currentVip) return null;
+            const daily = currentVip.price * currentVip.dailyYield;
+            return (
+              <div className="p-3 bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-9 w-9 bg-orange-600 rounded-xl flex items-center justify-center text-white text-[10px] font-black uppercase flex-shrink-0">
+                    V{currentVip.id}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-tight leading-none mb-1 truncate">{currentVip.name} • {currentVip.carName}</h4>
+                    <p className="text-[9px] text-slate-500 font-mono font-medium leading-none">Categoría: {currentVip.carCategory}</p>
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <span className="text-[10px] font-black text-orange-650 block text-orange-600">RD$ {daily.toLocaleString('es-DO')}/día</span>
+                  <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-wide">Rendimiento 5%</span>
+                </div>
+              </div>
+            );
+          })()
+        )}
+
         {/* Preset Amounts */}
-        <div className="grid grid-cols-3 gap-2">
-          {presets.map((val) => (
-            <button
-              key={val}
-              type="button"
-              onClick={() => setAmount(val)}
-              className={`py-2.5 px-2 rounded-xl font-mono text-xs font-black transition-all cursor-pointer ${
-                amount === val 
-                  ? 'bg-orange-600 border border-orange-600 text-white shadow shadow-orange-600/20 scale-[1.03]' 
-                  : 'bg-slate-50 border border-slate-200/80 text-slate-700 hover:border-slate-300'
-              }`}
-            >
-              RD$ {val.toLocaleString()}
-            </button>
-          ))}
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1.5 select-none">Montos rápidos:</label>
+          <div className="grid grid-cols-3 gap-2">
+            {presets.map((val) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => {
+                  setAmount(val);
+                  const matchedVip = VIP_LEVELS.find(v => v.price === val);
+                  if (matchedVip) {
+                    setSelectedVipId(matchedVip.id);
+                  } else {
+                    setSelectedVipId(null);
+                  }
+                }}
+                className={`py-2.5 px-2 rounded-xl font-mono text-xs font-black transition-all cursor-pointer ${
+                  amount === val 
+                    ? 'bg-orange-600 border border-orange-600 text-white shadow shadow-orange-600/20 scale-[1.03]' 
+                    : 'bg-slate-50 border border-slate-200/80 text-slate-700 hover:border-slate-350 hover:bg-slate-100/50'
+                }`}
+              >
+                RD$ {val.toLocaleString('es-DO')}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Custom Input */}
         <div>
           <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Monto personalizado (Mínimo RD$300):</label>
           <div className="relative rounded-2xl">
-            <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 text-xs font-black">RD$</span>
+            <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-400 text-xs font-black select-none">RD$</span>
             <input
               type="number"
               min="300"
               placeholder="Ej. 1500"
-              className="block w-full pl-12 pr-4 py-2.5 border border-slate-200 rounded-xl text-slate-900 bg-slate-50 font-mono text-xs font-black focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="block w-full pl-12 pr-4 py-2.5 border border-slate-200 rounded-xl text-slate-950 bg-slate-50 font-mono text-xs font-black focus:outline-none focus:ring-2 focus:ring-orange-500"
               value={amount || ''}
-              onChange={(e) => setAmount(parseInt(e.target.value, 10) || 0)}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10) || 0;
+                setAmount(val);
+                const matchedVip = VIP_LEVELS.find(v => v.price === val);
+                if (matchedVip) {
+                  setSelectedVipId(matchedVip.id);
+                } else {
+                  setSelectedVipId(null);
+                }
+              }}
             />
           </div>
         </div>

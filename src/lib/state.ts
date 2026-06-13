@@ -364,6 +364,27 @@ export function getDbState(): DBState {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj));
   }
 
+  // Robust property sanitization to guarantee safe fields (like vips active array and numbers)
+  if (stateObj && stateObj.users) {
+    Object.keys(stateObj.users).forEach(phone => {
+      const u = stateObj.users[phone];
+      if (u) {
+        if (!Array.isArray(u.vips)) {
+          u.vips = [];
+        }
+        if (typeof u.balance !== "number") {
+          u.balance = Number(u.balance) || 0;
+        }
+        if (typeof u.totalRecharged !== "number") {
+          u.totalRecharged = Number(u.totalRecharged) || 0;
+        }
+        if (typeof u.totalWithdrawn !== "number") {
+          u.totalWithdrawn = Number(u.totalWithdrawn) || 0;
+        }
+      }
+    });
+  }
+
   return stateObj;
 }
 
@@ -800,7 +821,7 @@ export function submitWithdrawal(
 
 /**
  * Buy a VIP Level
- * - Cannot buy the same VIP twice
+ * - Allows buying multiple VIPs of the same or different levels
  * - Deducts core price from balance
  */
 export function purchaseVIP(phone: string, vipId: number): { error: string | null; user?: User } {
@@ -815,15 +836,11 @@ export function purchaseVIP(phone: string, vipId: number): { error: string | nul
     return { error: "Usuario no encontrado." };
   }
 
-  if (user.vips.includes(vipId)) {
-    return { error: "Ya has adquirido este nivel VIP. No se puede comprar el mismo VIP dos veces." };
-  }
-
   if (user.balance < vip.price) {
     return { error: `Saldo insuficiente. El costo del ${vip.name} es RD$${vip.price}. Tu saldo actual es RD$${user.balance.toFixed(2)}.` };
   }
 
-  // Deduct balance, add to owned VIPs
+  // Deduct balance, add to owned VIPs (multiple of same VIP is allowed)
   user.balance -= vip.price;
   user.vips.push(vipId);
   user.vips.sort((a,b) => a-b);
@@ -1313,10 +1330,10 @@ export function updateUserVips(phone: string, vips: number[]): { error: string |
     return { error: "Usuario no encontrado." };
   }
 
-  // Ensure unique sorted list of numbers
+  // Ensure sorted list of numbers (can have multiple of the same VIP elements)
   const oldVips = user.vips || [];
-  const newVips = Array.from(new Set(vips)).map(Number).sort((a, b) => a - b);
-  const addedNewVip = newVips.some(v => !oldVips.includes(v));
+  const newVips = vips.map(Number).sort((a, b) => a - b);
+  const addedNewVip = newVips.length > oldVips.length;
 
   user.vips = newVips;
   if (addedNewVip) {
