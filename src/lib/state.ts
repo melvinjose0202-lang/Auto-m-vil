@@ -331,6 +331,19 @@ export function getDbState(): DBState {
     }
   }
 
+  // Absolute cleanup of duplicate items in runtime arrays to guard against duplicated Key errors
+  if (stateObj) {
+    if (stateObj.recharges && Array.isArray(stateObj.recharges)) {
+      stateObj.recharges = Array.from(new Map(stateObj.recharges.map((r: any) => [r.id, r])).values());
+    }
+    if (stateObj.withdrawals && Array.isArray(stateObj.withdrawals)) {
+      stateObj.withdrawals = Array.from(new Map(stateObj.withdrawals.map((w: any) => [w.id, w])).values());
+    }
+    if (stateObj.history && Array.isArray(stateObj.history)) {
+      stateObj.history = Array.from(new Map(stateObj.history.map((h: any) => [h.id, h])).values());
+    }
+  }
+
   // Ensure our official root referer "8093965618" is always available in state
   if (stateObj && stateObj.users && !stateObj.users["8093965618"]) {
     stateObj.users["8093965618"] = {
@@ -391,6 +404,17 @@ export function getDbState(): DBState {
 // State save helper
 function saveDbState(state: DBState) {
   if (typeof window !== "undefined") {
+    // Robust deep cleanup: enforce unique IDs for arrays of recharges, withdrawals and history
+    if (state.recharges && Array.isArray(state.recharges)) {
+      state.recharges = Array.from(new Map(state.recharges.map((r: any) => [r.id, r])).values());
+    }
+    if (state.withdrawals && Array.isArray(state.withdrawals)) {
+      state.withdrawals = Array.from(new Map(state.withdrawals.map((w: any) => [w.id, w])).values());
+    }
+    if (state.history && Array.isArray(state.history)) {
+      state.history = Array.from(new Map(state.history.map((h: any) => [h.id, h])).values());
+    }
+
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (e: any) {

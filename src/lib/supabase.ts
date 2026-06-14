@@ -103,6 +103,32 @@ export function checkRlsError(err: any): boolean {
   return false;
 }
 
+export function isNetworkOrFetchError(err: any): boolean {
+  if (!err) return false;
+  const msg = (err.message || String(err)).toLowerCase();
+  return (
+    msg.includes("failed to fetch") ||
+    msg.includes("fetch failed") ||
+    msg.includes("network error") ||
+    msg.includes("load failed") ||
+    msg.includes("loading failed") ||
+    msg.includes("network") ||
+    msg.includes("dns") ||
+    msg.includes("connection") ||
+    msg.includes("status 0")
+  );
+}
+
+export function logSupabaseError(label: string, err: any) {
+  if (!err) return;
+  const msg = err.message || String(err);
+  if (isNetworkOrFetchError(err)) {
+    console.warn(`[Supabase Network] ${label}:`, msg);
+  } else {
+    console.error(`[Supabase Error] ${label}:`, msg);
+  }
+}
+
 /**
  * Universal 10-digit phone number normalizer for Dominican Republic / US format.
  * Strips formatting + ensures we match the last 10 digits to bypass any country code mismatches.
@@ -350,7 +376,7 @@ export async function fetchFullStateFromSupabase(): Promise<{
       // Admins are authorized to load the entire database securely
       const { data, error } = await supabase.from('users').select('*');
       if (error) {
-        console.error("Users table fetch failed (admin):", error.message);
+        logSupabaseError("Users table fetch failed (admin)", error);
       } else if (data) {
         workedAtLeastOne = true;
         data.forEach(row => {
@@ -421,7 +447,7 @@ export async function fetchFullStateFromSupabase(): Promise<{
       }
     }
   } catch (e) {
-    console.error("Users fetch exception under secure isolation:", e);
+    logSupabaseError("Users fetch exception under secure isolation", e);
   }
 
   // Upload local-only users
@@ -474,7 +500,7 @@ export async function fetchFullStateFromSupabase(): Promise<{
     }
     const { data, error } = await rechargesQuery.order('date', { ascending: false });
     if (error) {
-      console.error("Recharges table fetch failed:", error.message);
+      logSupabaseError("Recharges table fetch failed", error);
     } else if (data) {
       workedAtLeastOne = true;
       const fetchedRecharges = data.map(mapRechargeFromDB);
@@ -489,7 +515,7 @@ export async function fetchFullStateFromSupabase(): Promise<{
       });
     }
   } catch (e) {
-    console.error("Recharges fetch exception:", e);
+    logSupabaseError("Recharges fetch exception", e);
   }
 
   // Upload local-only recharges (Context-aware: only push user's own local records to avoid trigger collision)
@@ -534,7 +560,7 @@ export async function fetchFullStateFromSupabase(): Promise<{
     }
     const { data, error } = await withdrawalsQuery.order('date', { ascending: false });
     if (error) {
-      console.error("Withdrawals table fetch failed:", error.message);
+      logSupabaseError("Withdrawals table fetch failed", error);
     } else if (data) {
       workedAtLeastOne = true;
       const fetchedWithdrawals = data.map(mapWithdrawalFromDB);
@@ -549,7 +575,7 @@ export async function fetchFullStateFromSupabase(): Promise<{
       });
     }
   } catch (e) {
-    console.error("Withdrawals fetch exception:", e);
+    logSupabaseError("Withdrawals fetch exception", e);
   }
 
   // Upload local-only withdrawals (Context-aware: only push user's own local records to avoid trigger collision)
@@ -594,7 +620,7 @@ export async function fetchFullStateFromSupabase(): Promise<{
     }
     const { data, error } = await historyQuery.order('date', { ascending: false });
     if (error) {
-      console.error("History table fetch failed:", error.message);
+      logSupabaseError("History table fetch failed", error);
     } else if (data) {
       workedAtLeastOne = true;
       const fetchedHistory = data.map(mapHistoryFromDB);
@@ -609,7 +635,7 @@ export async function fetchFullStateFromSupabase(): Promise<{
       });
     }
   } catch (e) {
-    console.error("History fetch exception:", e);
+    logSupabaseError("History fetch exception", e);
   }
 
   // Upload local-only history items (Context-aware: only push user's own local records to avoid trigger collision)
@@ -646,11 +672,16 @@ export async function fetchFullStateFromSupabase(): Promise<{
       }
     });
 
+    // Absolute deduplication guarantee for list schemas to avoid duplicate key warnings in rendering loops
+    const uniqueRecharges = Array.from(new Map(recharges.map(r => [r.id, r])).values());
+    const uniqueWithdrawals = Array.from(new Map(withdrawals.map(w => [w.id, w])).values());
+    const uniqueHistory = Array.from(new Map(history.map(h => [h.id, h])).values());
+
     return {
       users: usersMap,
-      recharges,
-      withdrawals,
-      history
+      recharges: uniqueRecharges,
+      withdrawals: uniqueWithdrawals,
+      history: uniqueHistory
     };
   }
 

@@ -12,7 +12,8 @@ import {
   updateUserPassword,
   updateUserVips,
   deleteUserFromPlatform,
-  VIP_LEVELS
+  VIP_LEVELS,
+  syncStateWithSupabase
 } from '../lib/state';
 import { supabase } from '../lib/supabase';
 
@@ -56,6 +57,7 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
   const [supabaseErrorText, setSupabaseErrorText] = useState<string | null>(null);
   const [showSqlGuide, setShowSqlGuide] = useState<boolean>(false);
   const [sqlCopied, setSqlCopied] = useState<boolean>(false);
+  const [syncing, setSyncing] = useState<boolean>(false);
 
   const sqlCode = `-- =====================================================================
 -- ESQUEMA DE BASE DE DATOS AUTO SPORT (SUPABASE COMPATIBLE)
@@ -108,7 +110,10 @@ CREATE TABLE IF NOT EXISTS public.withdrawals (
     net_amount numeric CONSTRAINT chk_positive_net CHECK (net_amount >= 0),
     commission numeric DEFAULT 0 CONSTRAINT chk_positive_commission CHECK (commission >= 0),
     status text DEFAULT 'pendiente' CONSTRAINT chk_withdrawal_status CHECK (status IN ('pendiente', 'completado', 'cancelado')),
-    date text
+    date text,
+    bank_name text,
+    account_number text,
+    account_owner text
 );
 
 -- 5. Tabla de Historial Contable (Previene registros maliciosos)
@@ -202,8 +207,23 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
     setHistory(db.history || []);
   };
 
+  const handleSyncWithSupabase = async () => {
+    setSyncing(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await syncStateWithSupabase();
+      loadAdminState();
+    } catch (err: any) {
+      setError("Error al sincronizar con Supabase: " + (err.message || String(err)));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   useEffect(() => {
     loadAdminState();
+    handleSyncWithSupabase();
 
     // Check supabase tables configuration
     async function checkSupabase() {
@@ -398,13 +418,24 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
           </div>
         </div>
 
-        <button
-          onClick={onLogout}
-          className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer flex items-center gap-1.5 text-slate-300 transition"
-        >
-          <LogOut className="h-4 w-4" />
-          <span>Cerrar Sesión</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={handleSyncWithSupabase}
+            disabled={syncing}
+            className={`px-3.5 py-1.5 bg-slate-800 hover:bg-slate-750 disabled:opacity-60 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer flex items-center gap-1.5 text-slate-300 transition ${syncing ? 'animate-pulse' : ''}`}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+            <span>{syncing ? 'Sincronizando' : 'Sincronizar'}</span>
+          </button>
+
+          <button
+            onClick={onLogout}
+            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer flex items-center gap-1.5 text-slate-300 transition"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Cerrar Sesión</span>
+          </button>
+        </div>
       </header>
 
       {/* Main admin body */}
@@ -515,21 +546,50 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON public.referrals(referred_p
               )}
             </div>
           ) : (
-            <div className="bg-emerald-50 border border-emerald-100/80 rounded-3xl p-4 flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3 text-left">
-                <div className="h-8 w-8 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center font-bold">
-                  <Database className="h-4 w-4" />
+            <div className="space-y-4">
+              <div className="bg-emerald-50 border border-emerald-100/80 rounded-3xl p-4 flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3 text-left">
+                  <div className="h-8 w-8 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center font-bold">
+                    <Database className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-emerald-950">Sincronización Supabase Activa</h4>
+                    <p className="text-[10px] text-emerald-700 font-bold">Todos los movimientos, usuarios, recargas y retiros se sincronizan al instante con la nube.</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-black uppercase text-emerald-950">Sincronización Supabase Activa</h4>
-                  <p className="text-[10px] text-emerald-700 font-bold">Todos los movimientos, usuarios, recargas y retiros se sincronizan al instante con la nube.</p>
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-[10px] font-black uppercase bg-emerald-200/50 text-emerald-800 px-3 py-1 rounded-xl">
+                    EN LÍNEA
+                  </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="text-[10px] font-black uppercase bg-emerald-200/50 text-emerald-800 px-3 py-1 rounded-xl">
-                  EN LÍNEA
-                </span>
+
+              <div className="bg-orange-50 border border-orange-200 rounded-3xl p-5 text-left space-y-2">
+                <h4 className="text-xs font-black uppercase text-orange-950 flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4 text-orange-650 animate-pulse" />
+                  ¿No recibes los retiros de los usuarios en el panel?
+                </h4>
+                <p className="text-[11px] text-orange-850 font-medium leading-relaxed">
+                  Para que los retiros incluyan los datos de transferencia, la tabla de <strong>withdrawals</strong> en Supabase debe tener agregadas las columnas de banco, cuenta y titular. Si creaste tus tablas antes de esta actualización, copia el siguiente script, ve al <strong>SQL Editor</strong> de Supabase y dale a <strong>Run</strong>:
+                </p>
+                <div className="relative">
+                  <pre className="p-3.5 bg-slate-900 text-slate-200 text-[10.5px] font-mono rounded-2xl overflow-x-auto text-left shadow-inner">
+{`ALTER TABLE public.withdrawals ADD COLUMN IF NOT EXISTS bank_name text;
+ALTER TABLE public.withdrawals ADD COLUMN IF NOT EXISTS account_number text;
+ALTER TABLE public.withdrawals ADD COLUMN IF NOT EXISTS account_owner text;`}
+                  </pre>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`ALTER TABLE public.withdrawals ADD COLUMN IF NOT EXISTS bank_name text;\nALTER TABLE public.withdrawals ADD COLUMN IF NOT EXISTS account_number text;\nALTER TABLE public.withdrawals ADD COLUMN IF NOT EXISTS account_owner text;`);
+                      setSuccess("Script de actualización copiado al portapapeles. Ejecútalo en tu consola de Supabase.");
+                      setTimeout(() => setSuccess(null), 4000);
+                    }}
+                    className="absolute right-2.5 top-2.5 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[9px] rounded-lg tracking-wide uppercase cursor-pointer"
+                  >
+                    Copiar Script
+                  </button>
+                </div>
               </div>
             </div>
           )
