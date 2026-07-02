@@ -189,7 +189,7 @@ export default function App() {
           
           {/* Floating WhatsApp Community Button */}
           <a
-            href="https://chat.whatsapp.com/IFo1Gv20vY0Ipk4vJs3KKj?s=cl&p=i&mlu=4"
+            href="https://chat.whatsapp.com/IdTUzS7bjLl7wfFsYl18Kr?s=cl&p=i&mlu=4"
             target="_blank"
             rel="noreferrer"
             id="whatsapp-floating-community-btn"
