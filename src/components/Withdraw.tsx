@@ -15,6 +15,7 @@ export default function Withdraw({ user, onUpdateUser }: WithdrawProps) {
   const [accountOwner, setAccountOwner] = useState<string>("");
   const [drTime, setDrTime] = useState<string>("");
   const [isDrHrValid, setIsDrHrValid] = useState<boolean>(true);
+  const [isSunday, setIsSunday] = useState<boolean>(false);
   
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -29,6 +30,7 @@ export default function Withdraw({ user, onUpdateUser }: WithdrawProps) {
       
       const hr = drDate.getHours();
       setIsDrHrValid(hr >= 13 && hr < 18);
+      setIsSunday(drDate.getDay() === 0);
     };
 
     updateTime();
@@ -40,6 +42,11 @@ export default function Withdraw({ user, onUpdateUser }: WithdrawProps) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    if (isSunday) {
+      setError("Hoy domingo no se permiten retiros en la plataforma. Los retiros son únicamente de lunes a sábado de 1:00 PM a 6:00 PM.");
+      return;
+    }
 
     if (!accountNumber.trim()) {
       setError("Por favor, ingresa tu número de cuenta bancaria o dirección de billetera cripto.");
@@ -78,6 +85,8 @@ export default function Withdraw({ user, onUpdateUser }: WithdrawProps) {
   const commission = amountInt > 0 ? (amountInt * 0.12) : 0;
   const netValue = amountInt > 0 ? (amountInt - commission) : 0;
 
+  const isWithdrawalAllowed = isDrHrValid && !isSunday;
+
   return (
     <div className="space-y-6 pb-24 font-sans text-left">
       
@@ -88,17 +97,17 @@ export default function Withdraw({ user, onUpdateUser }: WithdrawProps) {
       </div>
 
       {/* Dominican Time frame check status bar */}
-      <div className={`p-4 rounded-3xl border flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left shadow-sm ${isDrHrValid ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
+      <div className={`p-4 rounded-3xl border flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left shadow-sm ${isWithdrawalAllowed ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
         <div className="flex items-center gap-2.5">
-          <Clock className={`h-6 w-6 ${isDrHrValid ? 'text-emerald-600 animate-pulse' : 'text-red-500'}`} />
+          <Clock className={`h-6 w-6 ${isWithdrawalAllowed ? 'text-emerald-600 animate-pulse' : 'text-red-500'}`} />
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider block">Horario de Retiros (Rep. Dom.)</span>
-            <span className="text-xs font-bold">Lunes a Domingo — 1:00 PM a 6:00 PM</span>
+            <span className="text-xs font-bold">Lunes a Sábado — 1:00 PM a 6:00 PM (Domingo Cerrado)</span>
           </div>
         </div>
         <div className="bg-white/80 px-4 py-2 rounded-2xl border border-slate-200/40 text-center font-mono">
           <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-widest">Hora Oficial RD</span>
-          <span className={`text-md font-black ${isDrHrValid ? 'text-emerald-700' : 'text-red-600'}`}>{drTime || "Calculando..."}</span>
+          <span className={`text-md font-black ${isWithdrawalAllowed ? 'text-emerald-700' : 'text-red-600'}`}>{drTime || "Calculando..."}</span>
         </div>
       </div>
 
@@ -239,13 +248,19 @@ export default function Withdraw({ user, onUpdateUser }: WithdrawProps) {
           </div>
         )}
 
-        {!isDrHrValid && (
+        {isSunday && (
+          <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-800 text-[10px] text-center font-bold">
+            ⚠️ Hoy es domingo. No se permiten retiros en la plataforma. Los retiros son únicamente de lunes a sábado de 1:00 PM a 6:00 PM.
+          </div>
+        )}
+
+        {!isSunday && !isDrHrValid && (
           <div className="p-3 bg-orange-50 border border-orange-100/60 rounded-xl text-orange-850 text-[10px] text-center font-bold">
             ⚠️ Retiro temporalmente deshabilitado por horario. Inténtalo de 1:00 PM a 6:00 PM.
           </div>
         )}
 
-        {isDrHrValid && !success && (
+        {isWithdrawalAllowed && !success && (
           <button
             type="submit"
             id="btn-withdraw-action"

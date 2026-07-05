@@ -816,6 +816,14 @@ export function submitWithdrawal(
   // Calculate DR time (UTC-4)
   const drDate = new Date(now.getTime() + (now.getTimezoneOffset() - 240) * 60000);
   const drHour = drDate.getHours();
+  const drDay = drDate.getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
+
+  // Enforce Sunday restriction
+  if (drDay === 0) {
+    return {
+      error: "Hoy domingo no se permiten retiros en la plataforma. Los retiros son únicamente de lunes a sábado de 1:00 PM a 6:00 PM."
+    };
+  }
 
   if (drHour < 13 || drHour >= 18) {
     // We strictly enforce the hour but provide a visual disclaimer in the error, & let them bypass in "Simular Horario" or have a dev info box
