@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Play, TrendingUp, Sparkles, Navigation, Award, Wallet, CircleDollarSign, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Play, TrendingUp, Sparkles, Navigation, Award, Wallet, CircleDollarSign, CheckCircle2, RefreshCw, Flame, Timer } from 'lucide-react';
 import { User, VIPConfig } from '../types';
-import { VIP_LEVELS, claimDailyVehicleYields, getTimeLeftForDailyYield, isVipPromoActive, getVipPrice } from '../lib/state';
+import { VIP_LEVELS, claimDailyVehicleYields, getTimeLeftForDailyYield, isVipPromoActive, getVipPrice, getVipPromoEndTime } from '../lib/state';
 
 interface DashboardProps {
   user: User;
@@ -14,6 +14,39 @@ export default function Dashboard({ user, onUpdateUser, onNavigateToTab }: Dashb
   const [claiming, setClaiming] = useState(false);
   const [claimResult, setClaimResult] = useState<{ success: boolean; earned: number; message: string } | null>(null);
   const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+
+  const [timeLeftStr, setTimeLeftStr] = useState<string>("");
+  const [promoActive, setPromoActive] = useState<boolean>(isVipPromoActive());
+
+  // Promo Timer Effect
+  useEffect(() => {
+    const updateTimer = () => {
+      const endTime = getVipPromoEndTime();
+      const now = Date.now();
+      const active = isVipPromoActive();
+      setPromoActive(active);
+
+      if (!active || endTime <= now) {
+        setTimeLeftStr("00:00:00");
+        return;
+      }
+
+      const diff = endTime - now;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      const hStr = String(hours).padStart(2, '0');
+      const mStr = String(minutes).padStart(2, '0');
+      const sStr = String(seconds).padStart(2, '0');
+
+      setTimeLeftStr(`${hStr}:${mStr}:${sStr}`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Live countdown update
   useEffect(() => {
@@ -164,6 +197,40 @@ export default function Dashboard({ user, onUpdateUser, onNavigateToTab }: Dashb
           </button>
         </div>
       </div>
+
+      {/* Promo countdown clock if active on Home screen */}
+      {promoActive && (
+        <div 
+          onClick={() => onNavigateToTab(1)}
+          className="bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 p-4.5 rounded-3xl text-white shadow-lg relative overflow-hidden animate-pulse border border-orange-400/20 text-left cursor-pointer hover:scale-[1.01] transition-transform"
+        >
+          {/* Animated decorative sparks */}
+          <div className="absolute right-0 top-0 bottom-0 opacity-10 flex items-center justify-center -mr-6 scale-150 pointer-events-none">
+            <Flame className="w-40 h-40 text-white" />
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 relative z-10">
+            <div className="space-y-1">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/35 text-[10px] font-black uppercase tracking-widest text-yellow-350 border border-yellow-350/20">
+                <Sparkles className="w-3 h-3 text-yellow-400" /> ¡OFERTA SÚPER DOMINGO!
+              </span>
+              <h3 className="text-base font-black tracking-tight uppercase">50% DESCUENTO EN TODOS LOS VIP</h3>
+              <p className="text-[11px] text-red-50 font-medium leading-tight">
+                Compra cualquier nivel VIP a mitad de precio. ¡La rentabilidad del 5% diario sigue calculándose sobre el valor original del auto!
+              </p>
+            </div>
+            
+            {/* Clock element */}
+            <div className="flex items-center gap-2.5 bg-black/40 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 flex-shrink-0 min-w-[150px] justify-center">
+              <Timer className="w-5 h-5 text-yellow-300 animate-spin-slow" />
+              <div>
+                <span className="text-[9px] uppercase font-black text-slate-300 block tracking-wider leading-none">Termina en:</span>
+                <span className="text-lg font-black font-mono text-yellow-300 tracking-wider leading-none block mt-1">{timeLeftStr || "Calculando..."}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Action Grid for Recargar and Retirar */}
       <div className="grid grid-cols-2 gap-3 px-1">

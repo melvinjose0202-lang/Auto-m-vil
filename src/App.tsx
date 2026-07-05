@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Home, Trophy, Users, User as UserIcon, Calendar, Clock, DollarSign, History, KeyRound } from 'lucide-react';
 import { User } from './types';
-import { getDbState, syncStateWithSupabase } from './lib/state';
+import { getDbState, syncStateWithSupabase, isVipPromoActive, getVipPromoEndTime } from './lib/state';
 
 
 // Modulo imports
@@ -19,6 +19,53 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab ] = useState<number>(0); // 0: Inicio, 1: VIP, 2: Equipo, 3: Perfil, 4: Historial
+  const [showPromoModal, setShowPromoModal] = useState(false);
+  const [promoTimeLeftStr, setPromoTimeLeftStr] = useState<string>("");
+
+  // Auto trigger promo modal once logged user is present and Sunday discount promo is active
+  useEffect(() => {
+    if (currentUser && isVipPromoActive()) {
+      if (typeof window !== "undefined") {
+        const alreadyShown = sessionStorage.getItem("promo_announced_this_session");
+        if (!alreadyShown) {
+          setShowPromoModal(true);
+        }
+      }
+    }
+  }, [currentUser]);
+
+  // Live timer tick for the popup modal
+  useEffect(() => {
+    let interval: any;
+    if (showPromoModal) {
+      const updateTimer = () => {
+        const endTime = getVipPromoEndTime();
+        const now = Date.now();
+        const active = isVipPromoActive();
+        if (!active || endTime <= now) {
+          setPromoTimeLeftStr("00:00:00");
+          return;
+        }
+
+        const diff = endTime - now;
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        const hStr = String(hours).padStart(2, '0');
+        const mStr = String(minutes).padStart(2, '0');
+        const sStr = String(seconds).padStart(2, '0');
+
+        setPromoTimeLeftStr(`${hStr}:${mStr}:${sStr}`);
+      };
+
+      updateTimer();
+      interval = setInterval(updateTimer, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [showPromoModal]);
 
   // Load cached user session on build / startup
   useEffect(() => {
@@ -256,6 +303,78 @@ export default function App() {
 
           </nav>
         </div>
+
+        {/* Promotional Announcement Pop-up Modal */}
+        {showPromoModal && isVipPromoActive() && (
+          <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="w-full max-w-xs bg-gradient-to-b from-slate-900 via-slate-950 to-black rounded-3xl p-5 text-white text-center relative border border-orange-500/35 shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden text-left">
+              {/* Decorative background blurs */}
+              <div className="absolute -top-12 -left-12 w-32 h-32 bg-orange-600/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-red-600/20 rounded-full blur-3xl pointer-events-none" />
+              
+              {/* Animated Icon badge */}
+              <div className="mx-auto w-14 h-14 bg-gradient-to-tr from-red-600 via-orange-500 to-amber-400 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20 mb-4 animate-bounce">
+                <span className="text-2xl">🔥</span>
+              </div>
+
+              {/* Header Label */}
+              <div className="text-center mb-1">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-500/10 text-[9px] font-black uppercase tracking-widest text-orange-400 border border-orange-500/20">
+                  ⭐ OFERTA DEL DOMINGO ⭐
+                </span>
+              </div>
+              
+              <h3 className="text-lg font-black uppercase tracking-tight text-white mb-2 text-center leading-tight">
+                50% DESCUENTO VIP
+              </h3>
+              
+              <p className="text-[11px] text-slate-300 font-medium leading-relaxed mb-4">
+                ¡Los coches VIP están a <strong>MITAD DE PRECIO</strong> hoy domingo!
+                <br /><br />
+                Adquiere cualquier nivel VIP con un 50% de descuento. ¡La rentabilidad fija del <strong>5.0% diario</strong> sigue calculándose sobre el valor original del auto!
+              </p>
+
+              {/* Interactive Clock display */}
+              <div className="bg-black/45 rounded-2xl border border-white/10 p-3 mb-5 text-center">
+                <span className="text-[8px] uppercase font-black tracking-wider text-slate-400 block mb-0.5 leading-none">
+                  El tiempo vuela, termina en:
+                </span>
+                <span className="text-xl font-black font-mono text-yellow-300 tracking-wider">
+                  {promoTimeLeftStr || "00:00:00"}
+                </span>
+              </div>
+
+              {/* Navigation Action CTA */}
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      sessionStorage.setItem("promo_announced_this_session", "true");
+                    }
+                    setShowPromoModal(false);
+                    setActiveTab(1); // Navigates to VIP Store
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-750 hover:to-orange-600 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <span>Ver Coches al 50%</span>
+                  <span>🚀</span>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      sessionStorage.setItem("promo_announced_this_session", "true");
+                    }
+                    setShowPromoModal(false);
+                  }}
+                  className="w-full py-2 text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-wider transition cursor-pointer text-center"
+                >
+                  Cerrar y Ver Tablero
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
