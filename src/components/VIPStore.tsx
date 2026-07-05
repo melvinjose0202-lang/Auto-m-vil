@@ -158,14 +158,7 @@ export default function VIPStore({ user, onUpdateUser, onNavigateToTab }: VIPSto
             </div>
           </div>
 
-          {/* Tester Helper Button */}
-          <button 
-            onClick={resetPromoForTesting}
-            title="Reiniciar temporizador a 16 horas para demostración"
-            className="absolute bottom-2 right-2 bg-black/60 hover:bg-black/80 text-[8px] font-bold px-2 py-0.5 rounded border border-white/10 opacity-60 hover:opacity-100 transition flex items-center gap-1"
-          >
-            <RefreshCw className="w-2 h-2" /> Reiniciar 16h
-          </button>
+
         </div>
       )}
 
