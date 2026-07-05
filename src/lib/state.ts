@@ -138,6 +138,58 @@ export const VIP_LEVELS: VIPConfig[] = [
   }
 ];
 
+export function getVipPromoEndTime(): number {
+  if (typeof window === "undefined") return 0;
+  
+  const now = Date.now();
+  let endTimeStr = localStorage.getItem("vip_promo_end_time");
+  
+  const nowDate = new Date();
+  const drDate = new Date(nowDate.getTime() + (nowDate.getTimezoneOffset() - 240) * 60000);
+  const isSunday = drDate.getDay() === 0 || nowDate.getDay() === 0;
+  
+  if (isSunday) {
+    if (!endTimeStr) {
+      const sixteenHours = 16 * 60 * 60 * 1000;
+      const targetEnd = now + sixteenHours;
+      localStorage.setItem("vip_promo_end_time", targetEnd.toString());
+      return targetEnd;
+    } else {
+      const endTime = parseInt(endTimeStr, 10);
+      if (isNaN(endTime) || endTime < now - 24 * 60 * 60 * 1000) {
+        const sixteenHours = 16 * 60 * 60 * 1000;
+        const targetEnd = now + sixteenHours;
+        localStorage.setItem("vip_promo_end_time", targetEnd.toString());
+        return targetEnd;
+      }
+      return endTime;
+    }
+  } else {
+    if (endTimeStr) {
+      const endTime = parseInt(endTimeStr, 10);
+      if (endTime > now) {
+        return endTime;
+      }
+    }
+    return 0;
+  }
+}
+
+export function isVipPromoActive(): boolean {
+  const endTime = getVipPromoEndTime();
+  return endTime > Date.now();
+}
+
+export function getVipPrice(vipId: number): number {
+  const vip = VIP_LEVELS.find(v => v.id === vipId);
+  if (!vip) return 0;
+  
+  if (isVipPromoActive()) {
+    return Math.round(vip.price * 0.5);
+  }
+  return vip.price;
+}
+
 interface DBState {
   users: Record<string, User>;
   recharges: RechargeRequest[];
@@ -894,12 +946,15 @@ export function purchaseVIP(phone: string, vipId: number): { error: string | nul
     return { error: "Usuario no encontrado." };
   }
 
-  if (user.balance < vip.price) {
-    return { error: `Saldo insuficiente. El costo del ${vip.name} es RD$${vip.price}. Tu saldo actual es RD$${user.balance.toFixed(2)}.` };
+  const price = getVipPrice(vipId);
+  const isPromo = isVipPromoActive();
+
+  if (user.balance < price) {
+    return { error: `Saldo insuficiente. El costo del ${vip.name} es RD$${price}. Tu saldo actual es RD$${user.balance.toFixed(2)}.` };
   }
 
   // Deduct balance, add to owned VIPs (multiple of same VIP is allowed)
-  user.balance -= vip.price;
+  user.balance -= price;
   user.vips.push(vipId);
   user.vips.sort((a,b) => a-b);
   user.lastYieldClaimedAt = new Date().toISOString();
@@ -911,8 +966,8 @@ export function purchaseVIP(phone: string, vipId: number): { error: string | nul
     id: historyId,
     phone,
     type: "rendimiento", // using this category or custom
-    amount: -vip.price,
-    description: `Compra de ${vip.name} (${vip.carName})`,
+    amount: -price,
+    description: `Compra de ${vip.name} (${vip.carName})${isPromo ? ' [Descuento 50% Domingo]' : ''}`,
     date: new Date().toISOString()
   };
   state.history.unshift(histItem);

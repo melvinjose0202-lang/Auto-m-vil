@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, TrendingUp, Sparkles, Navigation, Award, Wallet, CircleDollarSign, CheckCircle2, RefreshCw } from 'lucide-react';
 import { User, VIPConfig } from '../types';
-import { VIP_LEVELS, claimDailyVehicleYields, getTimeLeftForDailyYield } from '../lib/state';
+import { VIP_LEVELS, claimDailyVehicleYields, getTimeLeftForDailyYield, isVipPromoActive, getVipPrice } from '../lib/state';
 
 interface DashboardProps {
   user: User;
@@ -379,7 +379,14 @@ export default function Dashboard({ user, onUpdateUser, onNavigateToTab }: Dashb
                   </div>
                   <div className="mt-3 flex justify-between items-center text-[10px] font-bold text-slate-400 border-t border-slate-100 pt-2">
                     <span>Inversión</span>
-                    <span className="font-mono text-slate-700">RD${vip.price}</span>
+                    {isVipPromoActive() ? (
+                      <span className="font-mono text-orange-600 flex items-center gap-1">
+                        <span className="line-through text-slate-400 font-normal">RD${vip.price}</span>
+                        <span>RD${getVipPrice(vip.id)}</span>
+                      </span>
+                    ) : (
+                      <span className="font-mono text-slate-700">RD${vip.price}</span>
+                    )}
                   </div>
                 </div>
               );

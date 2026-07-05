@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { ShieldCheck, CheckCircle2, ChevronRight, Car, HelpCircle, Coins } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, CheckCircle2, ChevronRight, Car, HelpCircle, Coins, Flame, Timer, Sparkles, RefreshCw } from 'lucide-react';
 import { User } from '../types';
-import { VIP_LEVELS, purchaseVIP } from '../lib/state';
+import { VIP_LEVELS, purchaseVIP, isVipPromoActive, getVipPromoEndTime, getVipPrice } from '../lib/state';
 
 interface VIPStoreProps {
   user: User;
@@ -13,6 +13,51 @@ export default function VIPStore({ user, onUpdateUser, onNavigateToTab }: VIPSto
   const [buyingId, setBuyingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const [timeLeftStr, setTimeLeftStr] = useState<string>("");
+  const [promoActive, setPromoActive] = useState<boolean>(isVipPromoActive());
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const endTime = getVipPromoEndTime();
+      const now = Date.now();
+      const active = isVipPromoActive();
+      setPromoActive(active);
+
+      if (!active || endTime <= now) {
+        setTimeLeftStr("00:00:00");
+        return;
+      }
+
+      const diff = endTime - now;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      const hStr = String(hours).padStart(2, '0');
+      const mStr = String(minutes).padStart(2, '0');
+      const sStr = String(seconds).padStart(2, '0');
+
+      setTimeLeftStr(`${hStr}:${mStr}:${sStr}`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const resetPromoForTesting = () => {
+    const nowTime = Date.now();
+    const sixteenHours = 16 * 60 * 60 * 1000;
+    localStorage.setItem("vip_promo_end_time", (nowTime + sixteenHours).toString());
+    setPromoActive(true);
+    // Force direct trigger of the timer state
+    const diff = sixteenHours;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    setTimeLeftStr(`${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+  };
 
   // High-end sports car images corresponding to VIPs
   const carImages: Record<number, string> = {
@@ -84,12 +129,53 @@ export default function VIPStore({ user, onUpdateUser, onNavigateToTab }: VIPSto
         </div>
       )}
 
+      {/* Promo countdown clock if active */}
+      {promoActive && (
+        <div className="bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 p-4.5 rounded-3xl text-white shadow-lg relative overflow-hidden animate-pulse border border-orange-400/20 text-left">
+          {/* Animated decorative sparks */}
+          <div className="absolute right-0 top-0 bottom-0 opacity-10 flex items-center justify-center -mr-6 scale-150 pointer-events-none">
+            <Flame className="w-40 h-40 text-white" />
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 relative z-10">
+            <div className="space-y-1">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/35 text-[10px] font-black uppercase tracking-widest text-yellow-350 border border-yellow-350/20">
+                <Sparkles className="w-3 h-3 text-yellow-400" /> ¡OFERTA SÚPER DOMINGO!
+              </span>
+              <h3 className="text-base font-black tracking-tight uppercase">50% DESCUENTO EN TODOS LOS VIP</h3>
+              <p className="text-[11px] text-red-50 font-medium leading-tight">
+                Compra cualquier nivel VIP a mitad de precio. ¡La rentabilidad del 5% diario sigue calculándose sobre el valor original del auto!
+              </p>
+            </div>
+            
+            {/* Clock element */}
+            <div className="flex items-center gap-2.5 bg-black/40 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 flex-shrink-0 min-w-[150px] justify-center">
+              <Timer className="w-5 h-5 text-yellow-300 animate-spin-slow" />
+              <div>
+                <span className="text-[9px] uppercase font-black text-slate-300 block tracking-wider leading-none">Termina en:</span>
+                <span className="text-lg font-black font-mono text-yellow-300 tracking-wider leading-none block mt-1">{timeLeftStr || "Calculando..."}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tester Helper Button */}
+          <button 
+            onClick={resetPromoForTesting}
+            title="Reiniciar temporizador a 16 horas para demostración"
+            className="absolute bottom-2 right-2 bg-black/60 hover:bg-black/80 text-[8px] font-bold px-2 py-0.5 rounded border border-white/10 opacity-60 hover:opacity-100 transition flex items-center gap-1"
+          >
+            <RefreshCw className="w-2 h-2" /> Reiniciar 16h
+          </button>
+        </div>
+      )}
+
       {/* VIP Product Grid */}
       <div className="space-y-5">
         {VIP_LEVELS.map((vip) => {
           const ownedCount = user.vips.filter(id => id === vip.id).length;
           const dailyProfit = vip.price * vip.dailyYield;
           const monthlyProfit = dailyProfit * 30;
+          const activePrice = getVipPrice(vip.id);
 
           return (
             <div 
@@ -129,7 +215,14 @@ export default function VIPStore({ user, onUpdateUser, onNavigateToTab }: VIPSto
                 <div className="grid grid-cols-3 gap-2 text-center bg-slate-50 p-3 rounded-2xl border border-slate-100">
                   <div>
                     <span className="text-[9px] text-slate-450 uppercase font-black tracking-wider block">Costo Automóvil</span>
-                    <span className="text-sm font-black font-mono text-slate-800">RD${vip.price}</span>
+                    {promoActive ? (
+                      <div className="flex flex-col items-center justify-center leading-none">
+                        <span className="text-[9.5px] line-through text-slate-400 font-mono font-bold">RD${vip.price}</span>
+                        <span className="text-sm font-black font-mono text-orange-600">RD${activePrice}</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-black font-mono text-slate-800">RD${vip.price}</span>
+                    )}
                   </div>
                   <div className="border-x border-slate-200/60">
                     <span className="text-[9px] text-slate-450 uppercase font-black tracking-wider block">Retorno Diario</span>
@@ -162,7 +255,11 @@ export default function VIPStore({ user, onUpdateUser, onNavigateToTab }: VIPSto
                     onClick={() => handleBuy(vip.id)}
                     className="w-full bg-slate-900 hover:bg-black text-white text-xs font-black uppercase tracking-wider py-3.5 px-4 rounded-xl shadow-md transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    <span>{ownedCount > 0 ? `Comprar otro coche por RD$ ${vip.price.toLocaleString('es-DO')}` : `Comprar coche por RD$ ${vip.price.toLocaleString('es-DO')}`}</span>
+                    <span>
+                      {ownedCount > 0 
+                        ? `Comprar otro coche por RD$ ${activePrice.toLocaleString('es-DO')}` 
+                        : `Comprar coche por RD$ ${activePrice.toLocaleString('es-DO')}`}
+                    </span>
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
@@ -193,7 +290,16 @@ export default function VIPStore({ user, onUpdateUser, onNavigateToTab }: VIPSto
             
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 flex justify-between items-center text-xs">
               <span className="font-semibold text-slate-650">Precio del Contrato:</span>
-              <span className="font-mono font-black text-slate-950">RD$ {VIP_LEVELS.find(v => v.id === buyingId)?.price}</span>
+              {promoActive && buyingId !== null ? (
+                <div className="text-right">
+                  <span className="text-[10px] line-through text-slate-400 block font-mono leading-none">RD$ {VIP_LEVELS.find(v => v.id === buyingId)?.price}</span>
+                  <span className="font-mono font-black text-orange-600 text-sm leading-tight block">
+                    RD$ {getVipPrice(buyingId)} <span className="text-[9px] font-bold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-md ml-1">50% OFF</span>
+                  </span>
+                </div>
+              ) : (
+                <span className="font-mono font-black text-slate-950">RD$ {buyingId !== null ? VIP_LEVELS.find(v => v.id === buyingId)?.price : 0}</span>
+              )}
             </div>
 
             {success && (

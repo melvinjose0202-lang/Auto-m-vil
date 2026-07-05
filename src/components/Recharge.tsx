@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Copy, Check, Upload, Landmark, ShieldCheck, ArrowRight, Wallet2, Coins, DollarSign, CreditCard, CheckCircle2, AlertCircle } from 'lucide-react';
 import { User } from '../types';
-import { submitRecharge, VIP_LEVELS } from '../lib/state';
+import { submitRecharge, VIP_LEVELS, isVipPromoActive, getVipPrice } from '../lib/state';
 
 interface RechargeProps {
   user: User;
@@ -79,8 +79,10 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isPdf = receiptName.toLowerCase().endsWith('.pdf') || receiptUrl.startsWith('data:application/pdf');
 
-  // Preset reference amounts
-  const presets = [300, 800, 2000, 5000, 9000, 12000];
+  // Preset reference amounts (automatically adjusted to half price if Sunday promo is active)
+  const promoActive = isVipPromoActive();
+  const basePresets = [300, 800, 2000, 5000, 9000, 12000];
+  const presets = promoActive ? basePresets.map(v => Math.round(v * 0.5)) : basePresets;
 
   // Specific bank and crypto configuration with realistic branding metadata
   const bankDetails: Record<string, { 
@@ -291,6 +293,18 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
           <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">Monto de Recarga</h3>
         </div>
 
+        {promoActive && (
+          <div className="p-3.5 bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-orange-500/20 rounded-2xl flex items-center gap-3 text-left animate-in fade-in duration-200">
+            <span className="text-xl">🔥</span>
+            <div>
+              <h4 className="text-xs font-black text-orange-700 uppercase tracking-tight">OFERTA ACTIVA: 50% DESCUENTO DOMINGO</h4>
+              <p className="text-[10px] text-slate-600 font-medium leading-normal mt-0.5">
+                ¡Los coches VIP están a mitad de precio hoy! Los importes de recarga sugeridos y los costes vinculados se han reducido un 50%.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* VIP Level Selector (1 to 13) */}
         <div>
           <label className="text-[10px] font-black uppercase tracking-wider text-orange-600 block mb-1.5 flex items-center gap-1 select-none">
@@ -304,10 +318,8 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
               if (val) {
                 const id = parseInt(val, 10);
                 setSelectedVipId(id);
-                const foundVip = VIP_LEVELS.find((v) => v.id === id);
-                if (foundVip) {
-                  setAmount(foundVip.price);
-                }
+                const actualPrice = getVipPrice(id);
+                setAmount(actualPrice);
               } else {
                 setSelectedVipId(null);
               }
@@ -315,11 +327,15 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
             className="block w-full px-4 py-2.5 border border-orange-200 rounded-xl text-slate-950 bg-orange-50/10 font-bold text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
           >
             <option value="">-- Ninguno (Monto Personalizado / Otro) --</option>
-            {VIP_LEVELS.map((vip) => (
-              <option key={vip.id} value={vip.id}>
-                VIP {vip.id} • {vip.carName} (RD$ {vip.price.toLocaleString("es-DO")})
-              </option>
-            ))}
+            {VIP_LEVELS.map((vip) => {
+              const actualPrice = getVipPrice(vip.id);
+              const isDiscounted = actualPrice !== vip.price;
+              return (
+                <option key={vip.id} value={vip.id}>
+                  VIP {vip.id} • {vip.carName} (RD$ {actualPrice.toLocaleString("es-DO")}){isDiscounted ? " [50% OFF]" : ""}
+                </option>
+              );
+            })}
           </select>
         </div>
 
@@ -358,7 +374,7 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
                 type="button"
                 onClick={() => {
                   setAmount(val);
-                  const matchedVip = VIP_LEVELS.find(v => v.price === val);
+                  const matchedVip = VIP_LEVELS.find(v => getVipPrice(v.id) === val);
                   if (matchedVip) {
                     setSelectedVipId(matchedVip.id);
                   } else {
@@ -391,7 +407,7 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
               onChange={(e) => {
                 const val = parseInt(e.target.value, 10) || 0;
                 setAmount(val);
-                const matchedVip = VIP_LEVELS.find(v => v.price === val);
+                const matchedVip = VIP_LEVELS.find(v => getVipPrice(v.id) === val);
                 if (matchedVip) {
                   setSelectedVipId(matchedVip.id);
                 } else {
