@@ -143,22 +143,32 @@ export function getVipPromoEndTime(): number {
   
   const now = Date.now();
   let endTimeStr = localStorage.getItem("vip_promo_end_time");
+  const hasUpdated9h = localStorage.getItem("vip_promo_duration_9h");
   
   const nowDate = new Date();
   const drDate = new Date(nowDate.getTime() + (nowDate.getTimezoneOffset() - 240) * 60000);
   const isSunday = drDate.getDay() === 0 || nowDate.getDay() === 0;
   
+  // If the 9-hour update hasn't run yet, we force set the promo to 9 hours from now
+  if (!hasUpdated9h) {
+    const nineHours = 9 * 60 * 60 * 1000;
+    const targetEnd = now + nineHours;
+    localStorage.setItem("vip_promo_end_time", targetEnd.toString());
+    localStorage.setItem("vip_promo_duration_9h", "true");
+    return targetEnd;
+  }
+  
   if (isSunday) {
     if (!endTimeStr) {
-      const sixteenHours = 16 * 60 * 60 * 1000;
-      const targetEnd = now + sixteenHours;
+      const nineHours = 9 * 60 * 60 * 1000;
+      const targetEnd = now + nineHours;
       localStorage.setItem("vip_promo_end_time", targetEnd.toString());
       return targetEnd;
     } else {
       const endTime = parseInt(endTimeStr, 10);
       if (isNaN(endTime) || endTime < now - 24 * 60 * 60 * 1000) {
-        const sixteenHours = 16 * 60 * 60 * 1000;
-        const targetEnd = now + sixteenHours;
+        const nineHours = 9 * 60 * 60 * 1000;
+        const targetEnd = now + nineHours;
         localStorage.setItem("vip_promo_end_time", targetEnd.toString());
         return targetEnd;
       }

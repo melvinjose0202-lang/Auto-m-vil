@@ -48,11 +48,12 @@ export default function VIPStore({ user, onUpdateUser, onNavigateToTab }: VIPSto
 
   const resetPromoForTesting = () => {
     const nowTime = Date.now();
-    const sixteenHours = 16 * 60 * 60 * 1000;
-    localStorage.setItem("vip_promo_end_time", (nowTime + sixteenHours).toString());
+    const nineHours = 9 * 60 * 60 * 1000;
+    localStorage.setItem("vip_promo_end_time", (nowTime + nineHours).toString());
+    localStorage.setItem("vip_promo_duration_9h", "true");
     setPromoActive(true);
     // Force direct trigger of the timer state
-    const diff = sixteenHours;
+    const diff = nineHours;
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
