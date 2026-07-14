@@ -97,36 +97,14 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
     category: 'banks' | 'crypto';
   }> = {
     "Banco Popular": {
-      account: "830535910",
+      account: "849439799",
       type: "Cuenta de Ahorros RD$",
-      owner: "Ronny a de león morillo",
+      owner: "Adrián",
       document: "Ahorros",
       info: "Popular RD$ • Transferencia al Instante",
       instructions: "Realiza la transferencia al instante (vía LBTR o al mismo banco) desde tu App Popular o Sucursal Virtual.",
       bgClass: "from-blue-950 via-blue-900 to-slate-900 text-white border border-blue-800/30",
       textAccent: "text-blue-400",
-      category: 'banks'
-    },
-    "Banreservas": {
-      account: "4263828958",
-      type: "Cuenta de Ahorros RD$",
-      owner: "Ronny a de león morillo",
-      document: "Ahorros",
-      info: "Banreservas RD$ • Depósito / Transferencia",
-      instructions: "Ideal para depósitos rápidos en estafetas o subagentes Banreservas, o transferencia bancaria directa.",
-      bgClass: "from-sky-950 via-sky-800 to-slate-900 text-white border border-sky-400/20",
-      textAccent: "text-sky-300",
-      category: 'banks'
-    },
-    "BHD": {
-      account: "39594500013",
-      type: "Cuenta de Ahorros RD$",
-      owner: "Ronny a de león morillo",
-      document: "Ahorros",
-      info: "BHD RD$ • Red Unica al Instante",
-      instructions: "Transfiere cómodamente desde tu plataforma de Banco BHD utilizando esta cuenta autorizada.",
-      bgClass: "from-emerald-950 via-emerald-800 to-slate-900 text-white border border-emerald-500/20",
-      textAccent: "text-emerald-400",
       category: 'banks'
     },
     "USDT BEP20": {
@@ -234,7 +212,7 @@ export default function Recharge({ user, onUpdateUser, onNavigateToTab }: Rechar
     if (res.error) {
       setError(res.error);
     } else {
-      setSuccess(`¡Tu reporte de recarga por RD$ ${amount.toLocaleString()} ha sido enviado correctamente! Nuestro equipo administrativo confirmará la transacción con el banco popular/banreserva/BHD o blockchain en unos minutos.`);
+      setSuccess(`¡Tu reporte de recarga por RD$ ${amount.toLocaleString()} ha sido enviado correctamente! Nuestro equipo administrativo confirmará la transacción con el Banco Popular o blockchain en unos minutos.`);
       setReference("");
       setReceiptUrl("");
       setReceiptName("comprobante.jpg");
